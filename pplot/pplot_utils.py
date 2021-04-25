@@ -103,11 +103,11 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     # To define the y-axis extent, we add a little margin to the actual min/max data values
     #  and then round to the nearest tenth. The ylims will always be even tenths.
     datarange = [np.floor(
-        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(
+        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(
             theta_rad) * 10) / 10,
-                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(
+                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(
                      theta_rad) * 10) / 10]
-    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(theta_rad)
+    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(theta_rad)
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height), facecolor=bgcolor)
 
@@ -135,10 +135,10 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
                         minor=True, fontproperties=tick_minor_fp);
     # Set the major ticks of the top axis with the narrow band filters
     prx.set_xticks((filter_to_wavelength[[k for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k)]].values[
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k and not 'RMS' in k)]].values[
                         0] - datadomain[0]) / (datadomain[1] - datadomain[0]));
     prx.set_xticklabels([k.replace('L1', 'L1\nR1') for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k)],
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k and not 'RMS' in k)],
                         fontproperties=tick_fp);
 
     if underplot == 'filter':
@@ -164,7 +164,7 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     for i in range(len(data.index)):
         # Plot L bayer and other filters (no R bayer) as connected
         full_spectrum = [k for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'L_S' in k and np.isfinite(
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'L_S' in k and not 'RMS' in k and np.isfinite(
                     data.iloc[i][k]))]
         markersizes = [8 if len(k) == 3 else 13 for k in full_spectrum]  # plot bayers w/ smaller symbols
         ix = np.argsort(filter_to_wavelength[full_spectrum].values[0])

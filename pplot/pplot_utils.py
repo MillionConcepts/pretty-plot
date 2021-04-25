@@ -4,6 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.font_manager as mplf
 from marslab.compat.mertools import MERSPECT_COLOR_MAPPINGS, WAVELENGTH_TO_FILTER
+import textwrap
+
 
 # Define the inverse operation to map filter designation to center wavelength
 # TODO: This should probably live in marslab.compat.mertools
@@ -69,11 +71,18 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
                 sol = 16,seq_id = 'zcamNNNN',target_name = 'TargetName',
                 credit = 'Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC',
                 sym = ['s','o','D','p','^','v','P','X','*','d','H','8','h']*100):
+    # TODO:     ^^^ Implement a less BS way of looping through symbols (`sym`)
     annotation_string = f'Sol016 : zcamNNNN : TargetName'
     assert (edge in ['left', 'right', 'top', 'bottom'] for edge in
             plot_edges)  # Tests that the variable has a valid value
     assert (underplot in [None, 'filter', 'grid'])  # Tests that the variable has a valid value
     assert (scale_method in ['scale_to_left', 'scale_to_avg', None])  # Tests that the variable has a valid value
+
+    # Remap the colors to feature names
+    color_to_feature = dict(zip(data['COLOR'].values, data['FEATURE'].values))
+    for k in color_to_feature.keys():
+        if pd.isnull(color_to_feature[k]):
+            color_to_feature[k] = k
 
     # path to file containing referenced font
     titillium = 'static/fonts/TitilliumWeb-Light.ttf'
@@ -94,11 +103,13 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     # To define the y-axis extent, we add a little margin to the actual min/max data values
     #  and then round to the nearest tenth. The ylims will always be even tenths.
     datarange = [np.floor(
-        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and k != 'SOL']].values) / np.cos(
+        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(
             theta_rad) * 10) / 10,
-                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and k != 'SOL']].values) / np.cos(
+                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(
                      theta_rad) * 10) / 10]
-    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and k != 'SOL']].values) / np.cos(theta_rad)
+    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(theta_rad)
+
+    breakpoint()
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height), facecolor=bgcolor)
 
@@ -122,14 +133,14 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
         (filter_to_wavelength[[k for k in data.keys() if (len(k) == 3) and 'L0' in k]].values[0] - datadomain[0]) / (
                     datadomain[1] - datadomain[0]),
         minor=True);
-    prx.set_xticklabels([f"L0{k[-1]}\nR0{k[-1]}" for k in data.keys() if (len(k) == 3) and 'L0' in k],
+    prx.set_xticklabels([f"L0{k[-1]}\nR0{k[-1]}" for k in data.keys() if (len(k) == 3) and 'L0' in k and not 'L_S' in k],
                         minor=True, fontproperties=tick_minor_fp);
     # Set the major ticks of the top axis with the narrow band filters
     prx.set_xticks((filter_to_wavelength[[k for k in data.keys() if (len(k) <= 3
-                                                                     and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k)]].values[
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k)]].values[
                         0] - datadomain[0]) / (datadomain[1] - datadomain[0]));
     prx.set_xticklabels([k.replace('L1', 'L1\nR1') for k in data.keys() if (len(k) <= 3
-                                                                            and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k)],
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k)],
                         fontproperties=tick_fp);
 
     if underplot == 'filter':
@@ -155,7 +166,7 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     for i in range(len(data.index)):
         # Plot L bayer and other filters (no R bayer) as connected
         full_spectrum = [k for k in data.keys() if (len(k) <= 3
-                                                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and np.isfinite(
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'L_S' in k and np.isfinite(
                     data.iloc[i][k]))]
         markersizes = [8 if len(k) == 3 else 13 for k in full_spectrum]  # plot bayers w/ smaller symbols
         ix = np.argsort(filter_to_wavelength[full_spectrum].values[0])

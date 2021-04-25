@@ -68,11 +68,11 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
                 solar_elevation=None,plot_width=15,plot_height=12,
                 bgcolor = 'white',plot_edges = ['left','bottom'],
                 underplot = "filter",
-                sol = 16,seq_id = 'zcamNNNN',target_name = 'TargetName',
+                sol = 'NNN',seq_id = 'Unk. SEQ_ID',target_name = 'Unk. TARGET',
                 credit = 'Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC',
                 sym = ['s','o','D','p','^','v','P','X','*','d','H','8','h']*100):
     # TODO:     ^^^ Implement a less BS way of looping through symbols (`sym`)
-    annotation_string = f'Sol016 : zcamNNNN : TargetName'
+    annotation_string = f'Sol{str(sol).zfill(3)} : {seq_id} : {target_name}'
     assert (edge in ['left', 'right', 'top', 'bottom'] for edge in
             plot_edges)  # Tests that the variable has a valid value
     assert (underplot in [None, 'filter', 'grid'])  # Tests that the variable has a valid value
@@ -108,8 +108,6 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
                  np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(
                      theta_rad) * 10) / 10]
     datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S']]].values) / np.cos(theta_rad)
-
-    breakpoint()
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height), facecolor=bgcolor)
 

@@ -196,10 +196,13 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
         # Plot bayer separately as smaller markers, w/ left eye filled and right as outlines
         # TODO: add black outlines to the bayer filters
         for bayer in ['L0R', 'L0G', 'L0B', 'R0R', 'R0G', 'R0B']:
-            ax.errorbar(filter_to_wavelength[bayer].values[0], data.iloc[i][bayer] / np.cos(theta_rad),
+            try:
+                ax.errorbar(filter_to_wavelength[bayer].values[0], data.iloc[i][bayer] / np.cos(theta_rad),
                         yerr=data.iloc[i][[f'{bayer}_ERR']],
                         fmt=f'{sym[i]}', color=MERSPECT_COLOR_MAPPINGS[data['COLOR'].values[i]], capsize=5,
                         fillstyle='none' if bayer.startswith('R') else 'full', markersize=8, alpha=0.3)
+            except KeyError:
+                continue
     ax.set_zorder(1)  # adjust the rendering order of twin axes
     ax.set_frame_on(False)  # make it transparent
 

@@ -95,6 +95,10 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     citation_fp = mplf.FontProperties(fname=titillium, size=12)
     metadata_fp = mplf.FontProperties(fname=titillium, size=22)
 
+    # TODO: Handle the case where solar_elevation is not the same for all of the spectra in the
+    # input marslab file, e.g. a file composited across observations.
+    # Can fix the existence check and make sure solar_elevation is an np.array but that will
+    # propagate to other things downstream...
     theta_rad = (90 - solar_elevation) * 2 * np.pi / 360 if solar_elevation else 2 * np.pi
 
     # Pre-define the plot extents so that they are easy to reuse
@@ -103,11 +107,11 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     # To define the y-axis extent, we add a little margin to the actual min/max data values
     #  and then round to the nearest tenth. The ylims will always be even tenths.
     datarange = [np.floor(
-        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(
+        0.25 * np.nanmin(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS','LAT','LON']]].values) / np.cos(
             theta_rad) * 10) / 10,
-                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(
+                 np.ceil(1.05 * np.nanmax(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS','LAT','LON']]].values) / np.cos(
                      theta_rad) * 10) / 10]
-    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS']]].values) / np.cos(theta_rad)
+    datamean = np.nanmean(data[[k for k in data.keys() if len(k) <= 3 and not k in ['SOL','L_S','RMS','LAT','LON']]].values) / np.cos(theta_rad)
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height), facecolor=bgcolor)
 
@@ -131,14 +135,17 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
         (filter_to_wavelength[[k for k in data.keys() if (len(k) == 3) and 'L0' in k]].values[0] - datadomain[0]) / (
                     datadomain[1] - datadomain[0]),
         minor=True);
-    prx.set_xticklabels([f"L0{k[-1]}\nR0{k[-1]}" for k in data.keys() if (len(k) == 3) and 'L0' in k and not 'L_S' in k],
+    prx.set_xticklabels([f"L0{k[-1]}\nR0{k[-1]}" for k in data.keys() if (len(k) == 3) and 'L0' in k and not 'L_S' in k
+                         and not 'RMS' in k and not 'LAT' in k and not 'LON' in k],
                         minor=True, fontproperties=tick_minor_fp);
     # Set the major ticks of the top axis with the narrow band filters
     prx.set_xticks((filter_to_wavelength[[k for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k and not 'RMS' in k)]].values[
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k
+                                                                     and not 'RMS' in k and not 'LAT' in k and not 'LON' in k)]].values[
                         0] - datadomain[0]) / (datadomain[1] - datadomain[0]));
     prx.set_xticklabels([k.replace('L1', 'L1\nR1') for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k and not 'RMS' in k)],
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'R1' in k and not 'L_S' in k
+                                                                            and not 'RMS' in k and not 'LAT' in k and not 'LON' in k)],
                         fontproperties=tick_fp);
 
     if underplot == 'filter':
@@ -164,7 +171,8 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
     for i in range(len(data.index)):
         # Plot L bayer and other filters (no R bayer) as connected
         full_spectrum = [k for k in data.keys() if (len(k) <= 3
-                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'L_S' in k and not 'RMS' in k and np.isfinite(
+                    and not 'R0' in k and not 'L0' in k and not 'SOL' in k and not 'L_S' in k and not 'RMS' in k
+                                                    and not 'LAT' in k and not 'LON' in k and np.isfinite(
                     data.iloc[i][k]))]
         markersizes = [8 if len(k) == 3 else 13 for k in full_spectrum]  # plot bayers w/ smaller symbols
         ix = np.argsort(filter_to_wavelength[full_spectrum].values[0])
@@ -202,7 +210,7 @@ def pretty_plot(data,color_to_feature={},scale_method = "scale_to_avg",plot_fn =
                         fmt=f'{sym[i]}', color=MERSPECT_COLOR_MAPPINGS[data['COLOR'].values[i]], capsize=5,
                         fillstyle='none' if bayer.startswith('R') else 'full', markersize=8, alpha=0.3)
             except KeyError:
-                continue
+                continue # Missing information for this filter
     ax.set_zorder(1)  # adjust the rendering order of twin axes
     ax.set_frame_on(False)  # make it transparent
 

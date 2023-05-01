@@ -2,7 +2,7 @@
 
 A utility for easily converting VNIR multispectral data from Mastcam-Z into a standardized, pretty plot for quick distribution of results. The tool accepts either `marslab`-formatted or `MERspect`-formatted specta files.
 
-####Installation / setup
+### Installation / setup
 git clone git@github.com:MillionConcepts/pretty-plot.git
 cd pretty-plot
 conda env create -n pretty-plot --file environment.yml 

@@ -1,19 +1,13 @@
 name: pretty-plot
 channels:
+  - # note: packages _must_ be installed from conda-forge. defaults has a newer/incompatible version of libgsl.
   - conda-forge
-  - defaults
 dependencies:
   - python=3.10
   - numpy
   - pandas
   - matplotlib
-  - git
   - jupyter
   - clize
-  - python-Levenshtein
-  - scipy
-  - scikit-image
-  - pdr
-  - astropy
-  - sympy
   - marslab
+  - fs

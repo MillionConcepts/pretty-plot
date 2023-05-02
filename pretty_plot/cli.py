@@ -5,7 +5,7 @@ from fs.osfs import OSFS
 import numpy as np
 import pandas as pd
 
-import pretty_plot
+import pretty_plot as pplot
 from pretty_plot.convert import convert_for_plot
 
 

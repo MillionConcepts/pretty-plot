@@ -26,7 +26,8 @@ def do_pplot(
         *,
         offset: "o" = None,
         recursive: "r" = False,
-        debug: "d" = False
+        debug: "d" = False,
+        plt_bayer: "b" = True
 ):
     """
     non-interactive CLI to pretty-plot. generates .png files
@@ -82,7 +83,8 @@ def do_pplot(
                     units=units,
                     plot_fn=plot_fn,
                     underplot=None,
-                    offset=offset
+                    offset=offset,
+                    plt_bayer=plt_bayer
                 )
         except (KeyError, ValueError) as error:
             if debug is True:

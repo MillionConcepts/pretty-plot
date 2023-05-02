@@ -74,6 +74,7 @@ def pretty_plot(
     underplot="filter",
     sym=None,
     offset=None,
+    plt_bayer=True
 ):
     # for files where we've replaced nulls with '-' to make people feel better
     data = data.replace("-", None)
@@ -173,21 +174,22 @@ def pretty_plot(
     prx = ax.twiny()
     # Remove spines _not_ listed in `plot_edges`
     despine(prx, edges=list(set(EDGES).difference(set(plot_edges))))
-    left_bayers = [k for k in data.columns if re.match(r"L0[RGB]$", k)]
-    prx_ticks = []
-    for filt in left_bayers:
-        position = (
-            (f2w[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
+    if plt_bayer:
+        left_bayers = [k for k in data.columns if re.match(r"L0[RGB]$", k)]
+        prx_ticks = []
+        for filt in left_bayers:
+            position = (
+                (f2w[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
+            )
+            if filt.endswith("G"):
+                position *= 1.04
+            prx_ticks.append(position)
+        prx.set_xticks(prx_ticks, minor=True)
+        prx.set_xticklabels(
+            [f"L0{k[-1]}\nR0{k[-1]}" for k in left_bayers],
+            minor=True,
+            fontproperties=tick_minor_fp,
         )
-        if filt.endswith("G"):
-            position *= 1.04
-        prx_ticks.append(position)
-    prx.set_xticks(prx_ticks, minor=True)
-    prx.set_xticklabels(
-        [f"L0{k[-1]}\nR0{k[-1]}" for k in left_bayers],
-        minor=True,
-        fontproperties=tick_minor_fp,
-    )
     # Set the major ticks of the top axis with the narrowband filters
     # only graph L1 from L1/R1, if it's available
     if "L1" in available_bands:
@@ -297,21 +299,22 @@ def pretty_plot(
         # Plot bayer separately as smaller markers, w/ left eye filled and
         #  right as outlines
         # TODO: add black outlines to the bayer filters
-        for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
-            try:
-                ax.errorbar(
-                    filter_to_wavelength[bayer].values[0],
-                    data.iloc[i][bayer] / photometric_scaling,
-                    yerr=data.iloc[i][[f"{bayer}_STD"]],
-                    fmt=f"{symbol}",
-                    color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
-                    capsize=5,
-                    fillstyle="none" if bayer.startswith("R") else "full",
-                    markersize=8,
-                    alpha=0.3,
-                )
-            except KeyError:
-                continue  # Missing information for this filter
+        if plt_bayer is True:
+            for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
+                try:
+                    ax.errorbar(
+                        filter_to_wavelength[bayer].values[0],
+                        data.iloc[i][bayer] / photometric_scaling,
+                        yerr=data.iloc[i][[f"{bayer}_STD"]],
+                        fmt=f"{symbol}",
+                        color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
+                        capsize=5,
+                        fillstyle="none" if bayer.startswith("R") else "full",
+                        markersize=8,
+                        alpha=0.3,
+                    )
+                except KeyError:
+                    continue  # Missing information for this filter
     ax.set_zorder(1)  # adjust the rendering order of twin axes
     ax.set_frame_on(False)  # make it transparent
 

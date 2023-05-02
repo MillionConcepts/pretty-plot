@@ -36,7 +36,7 @@ def do_pplot(
     all marslab files need SOLAR_ELEVATION, SEQ_ID, and SOL or things
     will not work out.
     param path_or_file: marslab file or root_dir containing marslab files
-    param recursive: runs pplot on all marslab files in root_dir tree,
+    param recursive: runs pretty_plot on all marslab files in root_dir tree,
         regardless of what specific file you passed it
     """
     # TODO, maybe: merge or something with handle_pretty_plot()

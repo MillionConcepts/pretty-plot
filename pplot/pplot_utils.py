@@ -73,6 +73,7 @@ def pretty_plot(
     plot_edges=("left", "bottom"),
     underplot="filter",
     sym=None,
+    offset=None,
 ):
     # for files where we've replaced nulls with '-' to make people feel better
     data = data.replace("-", None)
@@ -128,6 +129,11 @@ def pretty_plot(
     else:
         y_axis_units = "Relative Reflectance"
 
+    if type(offset) in (int, float):
+        y_axis_units = y_axis_units+f" (Offset by {offset} per spectrum)"
+    if type(offset) == list:
+        y_axis_units = y_axis_units+f" (Offset for Clarity)"
+
     # Pre-define the plot extents so that they are easy to reuse
     lpad, rpad = (20, 60)
     # add a x-axis buffer for graphical layout reasons.
@@ -139,6 +145,9 @@ def pretty_plot(
         k for k in data.keys() if k in DERIVED_CAM_DICT["ZCAM"]["filters"]
     ]
     scale = 1 / photometric_scaling
+    if offset:
+        for band in available_bands:
+            data[band] = data.apply(offset_value_calculator, axis=1, args=(band, offset))
     max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
     min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
     datarange = [
@@ -357,3 +366,14 @@ def make_pplot_annotation(data):
     if 'RSM' in line.keys():
         annotation += f'rsm {line["RSM"]}'
     return annotation
+
+
+def offset_value_calculator(row, band, offset):
+    if type(offset) in (int, float):
+        return row[band] + (offset * row.name)
+    elif type(offset) == list:
+        try:
+            return row[band] + offset[row.name]
+        except IndexError:
+            raise Exception("You must provide either a single offset or "
+                            "a list equal in length to the number of ROIs")

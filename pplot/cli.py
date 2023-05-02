@@ -24,6 +24,7 @@ def directory_of(path):
 def do_pplot(
         path_or_file,
         *,
+        offset: "o" = None,
         recursive: "r" = False,
         debug: "d" = False
 ):
@@ -61,6 +62,7 @@ def do_pplot(
                 ".csv", ".png"
             )
             print("Writing " + plot_fn)
+            # TODO: do we need this many .replace("-", np.nan) in the workflow?
             marslab_spectra = convert_for_plot(str(marslab_file)).replace(
                 "-", np.nan
             )
@@ -79,7 +81,8 @@ def do_pplot(
                     solar_elevation=solar_elevation,
                     units=units,
                     plot_fn=plot_fn,
-                    underplot=None
+                    underplot=None,
+                    offset=offset
                 )
         except (KeyError, ValueError) as error:
             if debug is True:

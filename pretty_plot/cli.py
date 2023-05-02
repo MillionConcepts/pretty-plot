@@ -5,8 +5,8 @@ from fs.osfs import OSFS
 import numpy as np
 import pandas as pd
 
-import pplot
-from pplot.convert import convert_for_plot
+import pretty_plot
+from pretty_plot.convert import convert_for_plot
 
 
 def looks_like_marslab(fn: str) -> bool:

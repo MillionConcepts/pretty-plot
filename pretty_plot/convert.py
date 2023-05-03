@@ -5,6 +5,11 @@
 import pandas as pd
 import numpy as np
 
+from marslab.compat.mertools import (
+    MERSPECT_COLOR_MAPPINGS, WAVELENGTH_TO_FILTER,
+)
+from marslab.compat.xcam import DERIVED_CAM_DICT
+
 
 def scale_eyes(data, method="scale_to_avg"):
     # Accepts a "marslab format" spectra file pandas DataFrame
@@ -74,3 +79,35 @@ def convert_for_plot(
     data = scale_eyes(data, method=scale_method)
     data.replace(np.nan, "-", inplace=True)
     return data
+
+
+def convert_to_simple_format(
+        spectra_fn,
+        instrument="ZCAM",
+        scale_method="scale_to_avg",
+):
+    """does not currently work for CCAM (no L/R eyes)"""
+    data = convert_for_plot(spectra_fn, instrument=instrument, scale_method=scale_method)
+    available_bands = [
+        k for k in data.keys() if k in DERIVED_CAM_DICT[instrument]["filters"]
+    ]
+    f2w = dict((v, k) for k, v in WAVELENGTH_TO_FILTER[instrument]["L"].items())
+    for k, v in WAVELENGTH_TO_FILTER[instrument]["R"].items():
+        f2w[v] = k
+    wavelengths = [(b, f2w[b], "LEFT") if b[0] == "L" else (b, f2w[b], "RIGHT")
+                   for b in available_bands]
+    wavelengths.sort(key=lambda x: x[1], reverse=True)
+    simple_df = pd.DataFrame.from_records(wavelengths, columns=['Band_name', 'Wavelength (nm)', 'Eye'])
+    simple_df.drop("Band_name", axis=1, inplace=True)
+    for index, row in data.iterrows():
+        roi_val = [row[b[0]] for b in wavelengths]
+        roi_std = [row[b[0]] for b in wavelengths]
+        row_df = pd.DataFrame({row["COLOR"]+"_mean": roi_val,
+                               row["COLOR"]+"_err": roi_std})
+        simple_df = pd.concat([simple_df, row_df], axis=1)
+    simple_csv_fn = str(spectra_fn).replace(
+        "marslab", "simplified"
+    )
+    print("Writing " + simple_csv_fn)
+    simple_df.to_csv(simple_csv_fn, index=False)
+    return simple_df

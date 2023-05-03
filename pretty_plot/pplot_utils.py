@@ -74,7 +74,8 @@ def pretty_plot(
     underplot="filter",
     sym=None,
     offset=None,
-    plt_bayer=True
+    plt_bayer=True,
+    roi_labels=None
 ):
     # for files where we've replaced nulls with '-' to make people feel better
     data = data.replace("-", None)
@@ -89,15 +90,16 @@ def pretty_plot(
         raise TypeError("invalid argument")
     # set up the legend: use FEATURE + FEATURE_SUBTYPE when possible,
     # FEATURE when not, COLOR as a last resort
-    roi_labels = {}
-    for row_ix, row in data.iterrows():
-        if "FEATURE" not in row.keys() or pd.isnull(row["FEATURE"]):
-            label = row["COLOR"]
-        else:
-            label = row["FEATURE"]
-            if not pd.isnull(row["FEATURE_SUBTYPE"]):
-                label += f" ({row['FEATURE_SUBTYPE']})"
-        roi_labels[row_ix] = label
+    if not roi_labels:
+        roi_labels = {}
+        for row_ix, row in data.iterrows():
+            if "FEATURE" not in row.keys() or pd.isnull(row["FEATURE"]):
+                label = row["COLOR"]
+            else:
+                label = row["FEATURE"]
+                if not pd.isnull(row["FEATURE_SUBTYPE"]):
+                    label += f" ({row['FEATURE_SUBTYPE']})"
+            roi_labels[row_ix] = label
     # adding this to slightly increase robustness
     data = data.drop(columns=data.columns[data.isna().all()])
     # path to file containing referenced font
@@ -137,7 +139,7 @@ def pretty_plot(
 
     # Pre-define the plot extents so that they are easy to reuse
     lpad, rpad = (20, 60)
-    # add a x-axis buffer for graphical layout reasons.
+    # add an x-axis buffer for graphical layout reasons.
     datadomain = [400 - lpad, 1100 + rpad]
     # To define the y-axis extent, we add a little margin to the actual
     # min/max data values and then round to the nearest tenth. The ylims
@@ -380,3 +382,20 @@ def offset_value_calculator(row, band, offset):
         except IndexError:
             raise Exception("You must provide either a single offset or "
                             "a list equal in length to the number of ROIs")
+
+
+def merge_and_drop(marslab_files, colors_to_drop=None, colors_to_keep=None, output_fn='marslab_concatenated.csv'):
+    data = pd.DataFrame()
+    for idx, fn in enumerate(marslab_files):
+        marslab_data = pd.read_csv(fn, na_values="-")
+        if colors_to_drop and colors_to_keep:
+            raise ValueError("You cannot specify both colors to drop and colors to keep.")
+        if colors_to_drop:
+            marslab_data = marslab_data[~marslab_data['COLOR'].isin(colors_to_drop[idx])]
+        elif colors_to_keep:
+            marslab_data = marslab_data[marslab_data['COLOR'].isin(colors_to_keep[idx])]
+        data = pd.concat([data, marslab_data], ignore_index=True)
+    print("Writing " + output_fn)
+    data.to_csv(output_fn, index=False)
+    return output_fn
+

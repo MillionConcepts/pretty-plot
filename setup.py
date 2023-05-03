@@ -6,6 +6,6 @@ setup(
       url="https://github.com/millionconcepts.pretty-plot.git",
       packages=find_packages(),
       package_data={
-            "pretty_plot": ['static/', 'data/']
+            "pretty_plot": ['static/*.*', 'data/*.*']
       }
 )

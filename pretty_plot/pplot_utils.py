@@ -105,7 +105,7 @@ def pretty_plot(
     data = data.drop(columns=data.columns[data.isna().all()])
     # path to file containing referenced font
     titillium = Path(
-        Path(__file__).parent.parent, "static/fonts/TitilliumWeb-Light.ttf"
+        Path(__file__).parent, "static/fonts/TitilliumWeb-Light.ttf"
     )
     # can also include other face properties, different fonts, etc.
     label_fp = mplf.FontProperties(fname=titillium, size=26)
@@ -222,6 +222,7 @@ def pretty_plot(
         ax.grid(axis="y", alpha=0.2)
         ax.grid(axis="x", alpha=0.2)
 
+    ax.set_ylim(datarange)
     ax.set_ylim(datarange)
     ax.set_ylabel(y_axis_units, fontproperties=label_fp)
 

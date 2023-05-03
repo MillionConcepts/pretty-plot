@@ -75,7 +75,8 @@ def pretty_plot(
     sym=None,
     offset=None,
     plt_bayer=True,
-    roi_labels=None
+    roi_labels=None,
+    annotation=None,
 ):
     # for files where we've replaced nulls with '-' to make people feel better
     data = data.replace("-", None)
@@ -348,7 +349,10 @@ def pretty_plot(
         fontproperties=metadata_fp
     )
     # titleprint(s=make_pplot_annotation(data), x=0.458, y=-0.132)
-    titleprint(s=make_pplot_annotation(data), x=-0.088, y=-0.1182)
+    if annotation:
+        titleprint(s=annotation, x=-0.088, y=-0.1182)
+    else:
+        titleprint(s=make_pplot_annotation(data), x=-0.088, y=-0.1182)
 
     # titleprint(s=CREDIT_TEXT, x=0.348, y=-0.177)
     titleprint(

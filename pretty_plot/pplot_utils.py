@@ -27,7 +27,7 @@ CREDIT_TEXT = "Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC"
 def plot_filter_profiles(ax, datarange, inst="ZCAM"):
     # Underplot the filter profiles
     assert inst in ["ZCAM", "MCAM", "PCAM"]
-    p = Path(f"data/{inst.lower()}/filters/")
+    p = Path(f"{Path(__file__.parent)}/data/{inst.lower()}/filters/")
     for fn in p.glob("*csv"):
         filter_profile = pd.read_csv(fn, header=None)
         if ("R0" in str(fn)) or ("R1" in str(fn)):

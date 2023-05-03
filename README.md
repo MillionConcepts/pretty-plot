@@ -1,6 +1,6 @@
 # Pretty Plot
 
-A utility for easily converting VNIR multispectral data from Mastcam-Z into a standardized, pretty plot for quick distribution of results. The tool accepts either `marslab`-formatted or `MERspect`-formatted specta files.
+A utility for easily converting VNIR multispectral data from Mastcam-Z into a standardized, pretty plot for quick distribution of results. The tool accepts `marslab`-formatted.
 
 ### Installation / setup
 git clone git@github.com:MillionConcepts/pretty-plot.git

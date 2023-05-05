@@ -110,7 +110,7 @@ def convert_to_simple_format(
             "marslab", "simplified"
         )
     else:
-        simple_csv_fn = str(spectra_fn).replace('.csv', 'simplified.csv')
+        simple_csv_fn = str(spectra_fn).replace('.csv', '_simplified.csv')
     print("Writing " + simple_csv_fn)
     simple_df.to_csv(simple_csv_fn, index=False)
     return simple_df

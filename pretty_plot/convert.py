@@ -105,9 +105,12 @@ def convert_to_simple_format(
         row_df = pd.DataFrame({row["COLOR"]+"_mean": roi_val,
                                row["COLOR"]+"_err": roi_std})
         simple_df = pd.concat([simple_df, row_df], axis=1)
-    simple_csv_fn = str(spectra_fn).replace(
-        "marslab", "simplified"
-    )
+    if "marslab" in str(spectra_fn):
+        simple_csv_fn = str(spectra_fn).replace(
+            "marslab", "simplified"
+        )
+    else:
+        simple_csv_fn = str(spectra_fn).replace('.csv', 'simplified.csv')
     print("Writing " + simple_csv_fn)
     simple_df.to_csv(simple_csv_fn, index=False)
     return simple_df

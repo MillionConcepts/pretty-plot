@@ -101,7 +101,7 @@ def convert_to_simple_format(
     simple_df.drop("Band_name", axis=1, inplace=True)
     for index, row in data.iterrows():
         roi_val = [row[b[0]] for b in wavelengths]
-        roi_std = [row[b[0]] for b in wavelengths]
+        roi_std = [row[b[0]+"_STD"] for b in wavelengths]
         row_df = pd.DataFrame({row["COLOR"]+"_mean": roi_val,
                                row["COLOR"]+"_err": roi_std})
         simple_df = pd.concat([simple_df, row_df], axis=1)

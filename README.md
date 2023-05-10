@@ -19,6 +19,6 @@ jupyter notebook
 Now, follow the instructions output on the command line to open a juptyer notebook session in your browser (crtl+click on the url) and click on Pretty Plot.ipynb.
 
 ---
-The contents of this notebook are provided by the Western Washington University Reflectance Lab (PI: M. Rice) and Million Concepts (C. Million, M. St. Clair) under a BSD 3-Clause License. You may do nearly anything that you want with this code. Questions can be sent to chase@millionconcepts.com
+The contents of this repo are provided by the Western Washington University Reflectance Lab (PI: M. Rice) and Million Concepts (C. Million, M. St. Clair, S.V. Brown) under a BSD 3-Clause License. You may do nearly anything that you want with this code. If you have any questions, leave us a Github Issue.
 
 `MERTools`/`MERspect` is proprietary software (Arizona State University) for rover tactical operations made available on an as-needed basis.

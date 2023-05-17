@@ -77,6 +77,8 @@ def pretty_plot(
     plt_bayer=True,
     roi_labels=None,
     annotation=None,
+    width_sf: "x" = 1,
+    height_sf: "y" = 1,
 ):
     # for files where we've replaced nulls with '-' to make people feel better
     data = data.replace("-", None)
@@ -161,7 +163,7 @@ def pretty_plot(
 
     # create the matplotlib figure we will render the plot in
     fig, ax = plt.subplots(
-        figsize=(plot_width, plot_height), facecolor=bgcolor
+        figsize=(plot_width*width_sf, plot_height*height_sf), facecolor=bgcolor
     )
     # Remove the bounding box and fix the domain
     despine(ax)
@@ -351,13 +353,13 @@ def pretty_plot(
     )
     # titleprint(s=make_pplot_annotation(data), x=0.458, y=-0.132)
     if annotation:
-        titleprint(s=annotation, x=-0.088, y=-0.1182)
+        titleprint(s=annotation, x=-0.088/width_sf, y=-0.1182/height_sf)
     else:
-        titleprint(s=make_pplot_annotation(data), x=-0.088, y=-0.1182)
+        titleprint(s=make_pplot_annotation(data), x=-0.088/width_sf, y=-0.1182/height_sf)
 
     # titleprint(s=CREDIT_TEXT, x=0.348, y=-0.177)
     titleprint(
-        s=CREDIT_TEXT.replace("Credit:", ""), x=-0.088, y=-0.1520
+        s=CREDIT_TEXT.replace("Credit:", ""), x=-0.088/width_sf, y=-0.1520/height_sf
     )
 
     if plot_fn:

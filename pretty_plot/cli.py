@@ -30,6 +30,8 @@ def do_pplot(
         plt_bayer: "b" = True,
         roi_labels: "l" = None,
         annotation: "a" = None,
+        width_sf: "w" = 1,
+        height_sf: "h" = 1,
 ):
     """
     non-interactive CLI to pretty-plot. generates .png files
@@ -88,7 +90,9 @@ def do_pplot(
                     offset=offset,
                     plt_bayer=plt_bayer,
                     roi_labels=roi_labels,
-                    annotation=annotation
+                    annotation=annotation,
+                    width_sf=width_sf,
+                    height_sf=height_sf,
                 )
         except (KeyError, ValueError) as error:
             if debug is True:

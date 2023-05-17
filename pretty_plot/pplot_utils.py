@@ -153,7 +153,9 @@ def pretty_plot(
     scale = 1 / photometric_scaling
     if offset:
         for band in available_bands:
-            data[band] = data.apply(offset_value_calculator, axis=1, args=(band, offset))
+            data[band] = data.apply(offset_value_calculator, axis=1, args=(band,
+                                                                           offset,
+                                                                           roi_labels))
     max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
     min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
     datarange = [
@@ -380,11 +382,13 @@ def make_pplot_annotation(data):
     return annotation
 
 
-def offset_value_calculator(row, band, offset):
+def offset_value_calculator(row, band, offset, roi_labels):
     if type(offset) in (int, float):
         return row[band] + (offset * row.name)
     elif type(offset) == list:
         try:
+            if 'offset' not in roi_labels[row.name] and (offset[row.name] != 0):
+                roi_labels[row.name] += f': offset-{offset[row.name]}'
             return row[band] + offset[row.name]
         except IndexError:
             raise Exception("You must provide either a single offset or "

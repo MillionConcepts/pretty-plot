@@ -227,7 +227,7 @@ def pretty_plot(
     ax.set_ylabel(y_axis_units, fontproperties=label_fp)
 
     # Set the ticks for the left yaxis
-    tenths = np.arange(0, 11, dtype='u1')
+    tenths = np.arange(0, np.ceil(datarange[1]*10), dtype='u1')
     ytick_pos = tenths[
         (tenths <= np.floor(datarange[1] * 10))
         & (tenths >= np.ceil(datarange[0] * 10))

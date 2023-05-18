@@ -388,7 +388,7 @@ def offset_value_calculator(row, band, offset, roi_labels):
     elif type(offset) == list:
         try:
             if 'offset' not in roi_labels[row.name] and (offset[row.name] != 0):
-                roi_labels[row.name] += f': offset-{offset[row.name]}'
+                roi_labels[row.name] += f' (offset:{offset[row.name]})'
             return row[band] + offset[row.name]
         except IndexError:
             raise Exception("You must provide either a single offset or "

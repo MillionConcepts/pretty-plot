@@ -31,7 +31,7 @@ def do_pplot(
         roi_labels: "l" = None,
         annotation: "a" = None,
         width_sf: "w" = 1,
-        height_sf: "h" = 1,
+        height_sf: "y" = 1,
 ):
     """
     non-interactive CLI to pretty-plot. generates .png files

@@ -19,48 +19,34 @@ def scale_eyes(data, method="scale_to_avg"):
     if np.isnan(data["L1"].values).any() or np.isnan(data["R1"].values).any():
         # shared filters don't exist
         return data
+    # reduce chance of unwanted casts
+    filterframe = data[
+        [d for d in data.columns if d in DERIVED_CAM_DICT['ZCAM']['filters']]
+    ]
     if method == "scale_to_left":
         # Scale the Right eye data to the Left eye at 800nm
-        for i in range(len(data.index)):
-            scale_factor = data.iloc[i]["L1"] / data.iloc[i]["R1"]
-            for k in data.keys():
-                if (
-                    ("R" in k)
-                    and (not "STD" in k)
-                    and (not "L0" in k)
-                    and (not "RMS" in k)
-                    and len(k) <= 3
-                ):
+        for i in range(len(filterframe.index)):
+            scale_factor = (
+                filterframe.loc[i, "L1"] / filterframe.loc[i, "R1"]
+            )
+            for k in filterframe.keys():
+                if k.startswith('R'):
                     # Scale R to L in place
-                    data.iloc[i][k] = data.iloc[i][k] * scale_factor
+                    data.loc[i, k] = filterframe.loc[i, k] * scale_factor
     elif method == "scale_to_avg":
         for i in range(len(data.index)):
-            left_scale = data.iloc[i][["L1", "R1"]].mean() / data.iloc[i]["L1"]
-            right_scale = (
-                data.iloc[i][["L1", "R1"]].mean() / data.iloc[i]["R1"]
+            eye_mean = np.mean(
+                (filterframe.loc[i, "L1"], filterframe.loc[i, "R1"])
             )
-            for k in data.keys():
-                if (
-                    ("R" in k)
-                    and ("STD" not in k)
-                    and ("L0" not in k)
-                    and ("RSM" not in k)
-                    and ("SOL" not in k)
-                    and len(k) <= 3
-                ):
+            left_scale = eye_mean / filterframe.loc[i, "L1"]
+            right_scale = eye_mean / filterframe.loc[i, "R1"]
+            for k in filterframe.keys():
+                if k.startswith("R"):
                     # Scale R to L in place
-                    # data.iloc[i][k] = data.iloc[i][k] * right_scale # bad
-                    data.loc[i, k] = data.iloc[i][k] * right_scale
-                elif (
-                    ("L" in k)
-                    and ("STD" not in k)
-                    and ("R0" not in k)
-                    and ("RSM" not in k)
-                    and ("SOL" not in k)
-                    and len(k) <= 3
-                ):
+                    data.loc[i, k] = filterframe.loc[i, k] * right_scale
+                elif k.startswith("L"):
                     # data.iloc[i][k] = data.iloc[i][k] * left_scale # bad
-                    data.loc[i, k] = data.iloc[i][k] * left_scale
+                    data.loc[i, k] = filterframe.loc[i, k] * left_scale
     return data
 
 

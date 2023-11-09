@@ -100,7 +100,10 @@ def pretty_plot(
                 label = row["COLOR"]
             else:
                 label = row["FEATURE"]
-                if not pd.isnull(row["FEATURE_SUBTYPE"]):
+                if (
+                    "FEATURE_SUBTYPE" in row.keys()
+                    and not pd.isnull(row["FEATURE_SUBTYPE"])
+                ):
                     label += f" ({row['FEATURE_SUBTYPE']})"
             roi_labels[row_ix] = label
     # adding this to slightly increase robustness

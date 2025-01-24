@@ -11,8 +11,8 @@ license     = { file = "LICENSE.md" }
 
 authors     = [
     { name = "Chase Million",     email = "chase@millionconcepts.com"    },
-    { name = "Sierra Brown",      email = "sierra@millionconcepts.com"   }
-    { name = "Michael St. Clair", email = "mstclair@millionconcepts.com" },
+    { name = "Sierra Brown",      email = "sierra@millionconcepts.com"   },
+    { name = "Michael St. Clair", email = "mstclair@millionconcepts.com" }
 ]
 
 classifiers = [
@@ -28,7 +28,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "jupyter",
-    "clize",
+    "fire",
     "marslab",
     "fs"
 ]
@@ -50,3 +50,6 @@ namespaces = false
 addopts = [
     "--import-mode=importlib"
 ]
+
+[project.scripts]
+pplot = "pretty_plot.cli:pplot_run_hook"

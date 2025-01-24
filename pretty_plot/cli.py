@@ -1,12 +1,4 @@
-from pathlib import Path
-import warnings
-
-from fs.osfs import OSFS
-import numpy as np
-import pandas as pd
-
-import pretty_plot as pplot
-from pretty_plot.convert import convert_for_plot
+import sys
 
 
 def looks_like_marslab(fn: str) -> bool:
@@ -22,16 +14,16 @@ def directory_of(path):
 
 
 def do_pplot(
-        path_or_file,
-        *,
-        offset: "o" = None,
-        recursive: "r" = False,
-        debug: "d" = False,
-        plt_bayer: "b" = True,
-        roi_labels: "l" = None,
-        annotation: "a" = None,
-        width_sf: "w" = 1,
-        height_sf: "y" = 1,
+    path_or_file,
+    *,
+    offset: "o" = None,
+    recursive: "r" = False,
+    debug: "d" = False,
+    plt_bayer: "b" = True,
+    roi_labels: "l" = None,
+    annotation: "a" = None,
+    width_sf: "w" = 1,
+    height_sf: "y" = 1,
 ):
     """
     non-interactive CLI to pretty-plot. generates .png files
@@ -43,6 +35,16 @@ def do_pplot(
     param recursive: runs pretty_plot on all marslab files in root_dir tree,
         regardless of what specific file you passed it
     """
+    from pathlib import Path
+    import warnings
+
+    from fs.osfs import OSFS
+    import numpy as np
+    import pandas as pd
+
+    import pretty_plot as pplot
+    from pretty_plot.convert import convert_for_plot
+
     # TODO, maybe: merge or something with handle_pretty_plot()
     path = Path(path_or_file)
     if recursive:
@@ -105,3 +107,15 @@ def do_pplot(
                 + " "
                 + str(error)
             )
+
+
+def pplot_run_hook():
+    try:
+        import fire
+        fire.Fire(do_pplot)
+    except ImportError:
+        print(
+            "'fire' package not found. Did you "
+            "forget to activate a virtual environment?"
+        )
+        sys.exit(1)

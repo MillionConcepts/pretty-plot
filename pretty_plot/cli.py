@@ -42,7 +42,7 @@ def do_pplot(
     import numpy as np
     import pandas as pd
 
-    import pretty_plot as pplot
+    import pretty_plot.pplot_utils as pplot_utils
     from pretty_plot.convert import convert_for_plot
 
     # TODO, maybe: merge or something with handle_pretty_plot()
@@ -83,7 +83,7 @@ def do_pplot(
                     units = marslab["UNITS"].iloc[0]
                 else:
                     units = None
-                pplot.pplot_utils.pretty_plot(
+                pplot_utils.pretty_plot(
                     marslab_spectra,
                     solar_elevation=solar_elevation,
                     units=units,

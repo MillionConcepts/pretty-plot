@@ -1,0 +1,52 @@
+# pyproject.toml documentation for reference:
+#   https://packaging.python.org/en/latest/
+#   https://setuptools.pypa.io/en/latest/userguide/
+
+[project]
+name        = "pretty-plot"
+version     = "0.2.0"
+description = "Pretty-plotting utility for Mastcam-Z data."
+readme      = "README.md"
+license     = { file = "LICENSE.md" }
+
+authors     = [
+    { name = "Chase Million",     email = "chase@millionconcepts.com"    },
+    { name = "Sierra Brown",      email = "sierra@millionconcepts.com"   }
+    { name = "Michael St. Clair", email = "mstclair@millionconcepts.com" },
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "jupyter",
+    "clize",
+    "marslab",
+    "fs"
+]
+
+[project.urls]
+Repository = "https://github.com/MillionConcepts/pretty-plot"
+
+[build-system]
+requires = ["setuptools >= 64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pretty_plot*"]
+namespaces = false
+
+# Recommended for new projects by pytest manual.
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib"
+]

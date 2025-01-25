@@ -24,6 +24,7 @@ def do_pplot(
     annotation: "a" = None,
     width_sf: "w" = 1,
     height_sf: "y" = 1,
+    normalize: bool = False
 ):
     """
     non-interactive CLI to pretty-plot. generates .png files
@@ -43,7 +44,7 @@ def do_pplot(
     import pandas as pd
 
     import pretty_plot.pplot_utils as pplot_utils
-    from pretty_plot.convert import convert_for_plot
+    from pretty_plot.convert import load_spectra
 
     # TODO, maybe: merge or something with handle_pretty_plot()
     path = Path(path_or_file)
@@ -59,43 +60,40 @@ def do_pplot(
         marslab_files = [path]
     for marslab_file in marslab_files:
         try:
-            marslab = pd.read_csv(marslab_file).replace("-", np.nan)
-            titular_plot_target = "unknown target"
-            if "NAME" in marslab.columns:
-                names = marslab["NAME"].dropna().unique()
-                if len(names) > 0:
-                    titular_plot_target = names[0]
-            plot_fn = str(marslab_file).replace(
-                ".csv", ".png"
-            )
+            # NOTE: there was a bunch of code here about like 'titular title'
+            #  and manipulating the 'NAME' field but it wasn't actually getting
+            #  passed to anything, so I deleted it. But it's possible that the
+            #  fact it wasn't doing anything was a regression and we should
+            #  replace the _intended_ functionality, whatever that was...
+
+            # TODO: I don't think 'marslab' and 'marslab_spectra' should be
+            #  loaded separately
+            marslab = pd.read_csv(marslab_file)
+            plot_fn = str(marslab_file).replace(".csv", ".png")
             print("Writing " + plot_fn)
-            # TODO: do we need this many .replace("-", np.nan) in the workflow?
-            marslab_spectra = convert_for_plot(str(marslab_file)).replace(
-                "-", np.nan
+            marslab_spectra = load_spectra(str(marslab_file))
+            if "SOLAR_ELEVATION" not in marslab.columns:
+                solar_elevation = None
+            else:
+                solar_elevation = marslab["SOLAR_ELEVATION"].iloc[0]
+            if "UNITS" in marslab.columns:
+                units = marslab["UNITS"].iloc[0]
+            else:
+                units = None
+            pplot_utils.pretty_plot(
+                marslab_spectra,
+                solar_elevation=solar_elevation,
+                units=units,
+                plot_fn=plot_fn,
+                underplot=None,
+                offset=offset,
+                plt_bayer=plt_bayer,
+                roi_labels=roi_labels,
+                annotation=annotation,
+                width_sf=width_sf,
+                height_sf=height_sf,
+                normalize=normalize
             )
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                if "SOLAR_ELEVATION" not in marslab.columns:
-                    solar_elevation = None
-                else:
-                    solar_elevation = marslab["SOLAR_ELEVATION"].iloc[0]
-                if "UNITS" in marslab.columns:
-                    units = marslab["UNITS"].iloc[0]
-                else:
-                    units = None
-                pplot_utils.pretty_plot(
-                    marslab_spectra,
-                    solar_elevation=solar_elevation,
-                    units=units,
-                    plot_fn=plot_fn,
-                    underplot=None,
-                    offset=offset,
-                    plt_bayer=plt_bayer,
-                    roi_labels=roi_labels,
-                    annotation=annotation,
-                    width_sf=width_sf,
-                    height_sf=height_sf,
-                )
         except (KeyError, ValueError) as error:
             if debug is True:
                 raise
@@ -112,10 +110,12 @@ def do_pplot(
 def pplot_run_hook():
     try:
         import fire
-        fire.Fire(do_pplot)
+
+        return fire.Fire(do_pplot)
     except ImportError:
         print(
             "'fire' package not found. Did you "
             "forget to activate a virtual environment?"
         )
         sys.exit(1)
+

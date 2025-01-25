@@ -5,9 +5,9 @@ from itertools import cycle
 from pathlib import Path
 
 import matplotlib.font_manager as mplf
+from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 
 from marslab.compat.mertools import (
     MERSPECT_COLOR_MAPPINGS, WAVELENGTH_TO_FILTER,
@@ -15,10 +15,12 @@ from marslab.compat.mertools import (
 from marslab.compat.xcam import DERIVED_CAM_DICT
 from marslab.imgops.pltutils import despine
 
-f2w = dict((v, [k]) for k, v in WAVELENGTH_TO_FILTER["ZCAM"]["L"].items())
+from pretty_plot.convert import scale_eyes, InstrumentIsMonocular
+
+F2W = dict((v, [k]) for k, v in WAVELENGTH_TO_FILTER["ZCAM"]["L"].items())
 for k, v in WAVELENGTH_TO_FILTER["ZCAM"]["R"].items():
-    f2w[v] = [k]
-filter_to_wavelength = pd.DataFrame(f2w)
+    F2W[v] = [k]
+FILTER_TO_WAVELENGTH = pd.DataFrame(F2W)
 
 EDGES = ("left", "right", "top", "bottom")
 CREDIT_TEXT = "Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC"
@@ -71,7 +73,7 @@ def pretty_plot(
     plot_height=12,
     bgcolor="white",
     plot_edges=("left", "bottom"),
-    underplot="filter",
+    underplot=None,
     sym=None,
     offset=None,
     plt_bayer=True,
@@ -79,18 +81,30 @@ def pretty_plot(
     annotation=None,
     width_sf: "x" = 1,
     height_sf: "y" = 1,
+    instrument = "ZCAM",
+    normalize: bool = False
 ):
-    # for files where we've replaced nulls with '-' to make people feel better
-    data = data.replace("-", None)
-    # for many circumstances
-    data = data.replace("", None)
     # make sure call kwargs have valid values
     try:
         assert (edge in EDGES for edge in plot_edges)
         assert underplot in [None, "filter", "grid"]
         assert scale_method in ["scale_to_left", "scale_to_avg", None]
+        assert units in (None, "IOF", "R*")
     except AssertionError:
         raise TypeError("invalid argument")
+    try:
+        data = scale_eyes(data, scale_method, instrument)
+    except InstrumentIsMonocular:
+        pass
+
+    # NOTE: these DataFrame.replace() calls should generally be fine because
+    # any column with a "-" or "" is already of object dtype
+
+    # for files where we've replaced nulls with '-' to make people feel better
+    data = data.replace("-", None)
+    # for many circumstances
+    data = data.replace("", None)
+
     # set up the legend: use FEATURE + FEATURE_SUBTYPE when possible,
     # FEATURE when not, COLOR as a last resort
     if not roi_labels:
@@ -101,8 +115,8 @@ def pretty_plot(
             else:
                 label = row["FEATURE"]
                 if (
-                    "FEATURE_SUBTYPE" in row.keys()
-                    and not pd.isnull(row["FEATURE_SUBTYPE"])
+                        "FEATURE_SUBTYPE" in row.keys()
+                        and not pd.isnull(row["FEATURE_SUBTYPE"])
                 ):
                     label += f" ({row['FEATURE_SUBTYPE']})"
             roi_labels[row_ix] = label
@@ -128,43 +142,61 @@ def pretty_plot(
         if solar_elevation is not None
         else 2 * np.pi
     )
-    if units is None:
-        photometric_scaling = np.cos(theta_rad)
-    else:
+    if units in (None, "IOF") and solar_elevation is None:
+        yax_label = "IOF"
         photometric_scaling = 1
-
-    if units is None and solar_elevation is None:
-        y_axis_units = "IOF"
+    elif units == "R*":
+        yax_label = "Relative Reflectance"
+        photometric_scaling = 1
     else:
-        y_axis_units = "Relative Reflectance"
+        yax_label = "Relative Reflectance"
+        photometric_scaling = np.cos(theta_rad)
 
+    yax_text_suffixes = []
+    if normalize is True:
+        yax_text_suffixes.append("normalized")
     if type(offset) in (int, float):
-        y_axis_units = y_axis_units+f" (Offset by {offset} per spectrum)"
+        yax_text_suffixes.append(f"offset {offset}/spectrum")
     if type(offset) == list:
-        y_axis_units = y_axis_units+f" (Offset for Clarity)"
+        yax_text_suffixes.append("offset for clarity")
+
+    if len(yax_text_suffixes) > 0:
+        yax_label = f"{yax_label} ({'& '.join(yax_text_suffixes)})"
 
     # Pre-define the plot extents so that they are easy to reuse
     lpad, rpad = (20, 60)
     # add an x-axis buffer for graphical layout reasons.
     datadomain = [400 - lpad, 1100 + rpad]
-    # To define the y-axis extent, we add a little margin to the actual
-    # min/max data values and then round to the nearest tenth. The ylims
-    # will always be even tenths.
+
+    # preprocess bands
     available_bands = [
-        k for k in data.keys() if k in DERIVED_CAM_DICT["ZCAM"]["filters"]
+        k for k in data.keys() if k in DERIVED_CAM_DICT[instrument]["filters"]
     ]
-    scale = 1 / photometric_scaling
+    numeric_cols = available_bands + [f"{b}_STD" for b in available_bands]
+    for band in available_bands:
+        # this is largely to convert None to NaN
+        data[band] = data[band].astype(float)
+    pscale = 1 / photometric_scaling
+    if normalize is True:
+        for ix in data.index:
+            rscale = np.nanmax(data.loc[ix, available_bands])
+            roffset = np.nanmin(data.loc[ix, available_bands]) / rscale
+            data.loc[ix, numeric_cols] /= rscale
+            data.loc[ix, available_bands] -= roffset
+
     if offset:
         for band in available_bands:
-            data[band] = data.apply(offset_value_calculator, axis=1, args=(band,
-                                                                           offset,
-                                                                           roi_labels))
+            data[band] = data.apply(
+                offset_value_calculator,
+                axis=1,
+                args=(band, offset, roi_labels)
+            )
     max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
     min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
     datarange = [
-        0.85 * scale * np.nanmin(min_sig),
-        1.05 * scale * np.nanmax(max_sig),
-    ]
+        0.85 * pscale * np.nanmin(min_sig),
+        1.05 * pscale * np.nanmax(max_sig),
+        ]
 
     # create the matplotlib figure we will render the plot in
     fig, ax = plt.subplots(
@@ -189,7 +221,7 @@ def pretty_plot(
         prx_ticks = []
         for filt in left_bayers:
             position = (
-                (f2w[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
+                    (F2W[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
             )
             if filt.endswith("G"):
                 position *= 1.04
@@ -209,7 +241,7 @@ def pretty_plot(
     else:
         narrow = [k for k in available_bands if ("0" not in k)]
     prx.set_xticks(
-        (filter_to_wavelength[narrow].values[0] - datadomain[0])
+        (FILTER_TO_WAVELENGTH[narrow].values[0] - datadomain[0])
         / (datadomain[1] - datadomain[0])
     )
     if ("L1" in available_bands) and ("R1" in available_bands):
@@ -231,14 +263,21 @@ def pretty_plot(
 
     ax.set_ylim(datarange)
     ax.set_ylim(datarange)
-    ax.set_ylabel(y_axis_units, fontproperties=label_fp)
+    ax.set_ylabel(yax_label, fontproperties=label_fp)
+
+    # To define the y-axis extent, we add a little margin to the actual
+    # min/max data values and then round to the nearest tenth. The ylims
+    # will always be even tenths.
 
     # Set the ticks for the left yaxis
-    tenths = np.arange(0, np.ceil(datarange[1]*10), dtype='u1')
+    tenths = np.arange(0, np.ceil(datarange[1] * 10), dtype='u1')
     ytick_pos = tenths[
         (tenths <= np.floor(datarange[1] * 10))
         & (tenths >= np.ceil(datarange[0] * 10))
     ]
+    # don't permit a massive quantity of ticks
+    if len(ytick_pos) > 10:
+        ytick_pos = ytick_pos[None:None:2]
     ax.set_yticks(ytick_pos / 10)
     ax.set_yticklabels(
         [str(round(t, 1)) for t in ytick_pos / 10], fontproperties=tick_fp,
@@ -262,34 +301,34 @@ def pretty_plot(
         markersizes = [
             8 if len(k) == 3 else 13 for k in notna_narrow
         ]  # plot bayers w/ smaller symbols
-        ix = np.argsort(filter_to_wavelength[notna_narrow].values[0])
+        ix = np.argsort(FILTER_TO_WAVELENGTH[notna_narrow].values[0])
         # plot the errorbars
         ax.errorbar(
-            filter_to_wavelength[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow][ix] / photometric_scaling,
-            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]][ix],
+            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
+            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
             fmt=f"",
             color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
             alpha=0.5,
             capsize=5,
-        )
+            )
 
         # plot the line
         ax.errorbar(
-            filter_to_wavelength[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow][ix] / photometric_scaling,
-            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]][ix],
+            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
+            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
             fmt=f"-",
             color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
             markersize=10,
             alpha=0.5,
             linewidth=3,
-        )
+            )
 
         # plot the symbols
         ax.scatter(
-            filter_to_wavelength[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow][ix] / photometric_scaling,
+            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
             marker=f"{symbol}",
             color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
             edgecolors="k",
@@ -305,7 +344,7 @@ def pretty_plot(
                     )
                 )
             ),
-        )
+            )
 
         # Plot bayer separately as smaller markers, w/ left eye filled and
         #  right as outlines
@@ -314,7 +353,7 @@ def pretty_plot(
             for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
                 try:
                     ax.errorbar(
-                        filter_to_wavelength[bayer].values[0],
+                        FILTER_TO_WAVELENGTH[bayer].values[0],
                         data.iloc[i][bayer] / photometric_scaling,
                         yerr=data.iloc[i][[f"{bayer}_STD"]],
                         fmt=f"{symbol}",
@@ -323,7 +362,7 @@ def pretty_plot(
                         fillstyle="none" if bayer.startswith("R") else "full",
                         markersize=8,
                         alpha=0.3,
-                    )
+                        )
                 except KeyError:
                     continue  # Missing information for this filter
     ax.set_zorder(1)  # adjust the rendering order of twin axes
@@ -340,7 +379,7 @@ def pretty_plot(
             (1038 - datadomain[0])
             / (datadomain[1] - datadomain[0]),  # left edge goes at 1038nm
             0.99,
-        ],
+            ],
         labelspacing=0.3,
         borderpad=0.1,
         prop=legend_fp,

@@ -2,16 +2,25 @@
 # TODO: we should decide how and if to conglomerate this with stuff in
 #  marslab.compat -- michael
 
-import pandas as pd
+from dustgoggles.structures import listify
 import numpy as np
+import pandas as pd
 
-from marslab.compat.mertools import (
-    MERSPECT_COLOR_MAPPINGS, WAVELENGTH_TO_FILTER,
-)
+from marslab.compat.mertools import WAVELENGTH_TO_FILTER
 from marslab.compat.xcam import DERIVED_CAM_DICT
 
+class InstrumentIsMonocular(TypeError):
+    """
+    This is a single-eye instrument and you cannot do binocular things to it.
+    """
+    pass
 
-def scale_eyes(data, method="scale_to_avg"):
+
+def scale_eyes(data, method="scale_to_avg", instrument="ZCAM"):
+    if method is None:
+        return data
+    if "L1" not in data.columns and "R1" not in data.columns:
+        raise InstrumentIsMonocular
     # Accepts a "marslab format" spectra file pandas DataFrame
     # This translation is done _in place_... which is maybe bad...
     #    but will be fine as long as you always restart + rerun
@@ -20,11 +29,12 @@ def scale_eyes(data, method="scale_to_avg"):
         # shared filters don't exist
         return data
     # reduce chance of unwanted casts
-    filterframe = data[
-        [d for d in data.columns if d in DERIVED_CAM_DICT['ZCAM']['filters']]
+    fcols = [
+        d for d in data.columns if d in DERIVED_CAM_DICT[instrument]['filters']
     ]
+    filterframe = data[fcols]
     if method == "scale_to_left":
-        # Scale the Right eye data to the Left eye at 800nm
+        # scale right to left eye at 800 (ZCAM) or 527 (MCAM) nm
         for i in range(len(filterframe.index)):
             scale_factor = (
                 filterframe.loc[i, "L1"] / filterframe.loc[i, "R1"]
@@ -34,6 +44,7 @@ def scale_eyes(data, method="scale_to_avg"):
                     # Scale R to L in place
                     data.loc[i, k] = filterframe.loc[i, k] * scale_factor
     elif method == "scale_to_avg":
+        # scale right and left eyes to average at 800 (ZCAM) or 527 (MCAM) nm
         for i in range(len(data.index)):
             eye_mean = np.mean(
                 (filterframe.loc[i, "L1"], filterframe.loc[i, "R1"])
@@ -50,30 +61,23 @@ def scale_eyes(data, method="scale_to_avg"):
     return data
 
 
-def convert_for_plot(
-    spectra_fn,
-    instrument="ZCAM",
-    color_to_feature={},
-    scale_method="scale_to_avg",
-):
-    if spectra_fn.__class__ == str:
-        spectra_fn = [spectra_fn]
-    data = pd.DataFrame()
-    for fn in spectra_fn:
-        marslab_data = pd.read_csv(fn, index_col=None, na_values="-")
-        data = pd.concat([data, marslab_data], ignore_index=True)
-    data = scale_eyes(data, method=scale_method)
-    data.replace(np.nan, "-", inplace=True)
-    return data
+def load_spectra(spectra_fn):
+    data = [
+        pd.read_csv(fn, index_col=None, na_values="-")
+        for fn in listify(spectra_fn)
+    ]
+    return pd.concat(data, ignore_index=True)
 
 
 def convert_to_simple_format(
-        spectra_fn,
-        instrument="ZCAM",
-        scale_method="scale_to_avg",
+    spectra_fn,
+    instrument="ZCAM",
+    scale_method="scale_to_avg",
 ):
-    """does not currently work for CCAM (no L/R eyes)"""
-    data = convert_for_plot(spectra_fn, instrument=instrument, scale_method=scale_method)
+    """WARNING: does not currently work for instruments with no L/R eyes"""
+    data = pd.read_csv(spectra_fn, index_col=None, na_values="-")
+    if instrument in DERIVED_CAM_DICT.keys():
+        scale_eyes(data, scale_method, instrument)
     available_bands = [
         k for k in data.keys() if k in DERIVED_CAM_DICT[instrument]["filters"]
     ]

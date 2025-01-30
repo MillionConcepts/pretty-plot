@@ -142,11 +142,11 @@ def pretty_plot(
         if solar_elevation is not None
         else 2 * np.pi
     )
-    if units in (None, "IOF") and solar_elevation is None:
-        yax_label = "IOF"
-        photometric_scaling = 1
-    elif units == "R*":
+    if units == "R*" or normalize is True:
         yax_label = "Relative Reflectance"
+        photometric_scaling = 1
+    elif units in (None, "IOF") and solar_elevation is None:
+        yax_label = "IOF"
         photometric_scaling = 1
     else:
         yax_label = "Relative Reflectance"
@@ -179,8 +179,10 @@ def pretty_plot(
     pscale = 1 / photometric_scaling
     if normalize is True:
         for ix in data.index:
-            rscale = np.nanmax(data.loc[ix, available_bands])
-            roffset = np.nanmin(data.loc[ix, available_bands]) / rscale
+            rmax = np.nanmax(data.loc[ix, available_bands])
+            rmin = np.nanmin(data.loc[ix, available_bands])
+            rscale = rmax - rmin
+            roffset = rmin / rscale
             data.loc[ix, numeric_cols] /= rscale
             data.loc[ix, available_bands] -= roffset
 

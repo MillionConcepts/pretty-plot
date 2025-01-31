@@ -3,6 +3,7 @@ import textwrap
 from functools import partial
 from itertools import cycle
 from pathlib import Path
+from typing import Optional, Union
 
 import matplotlib.font_manager as mplf
 from matplotlib import pyplot as plt
@@ -82,14 +83,19 @@ def pretty_plot(
     width_sf: "x" = 1,
     height_sf: "y" = 1,
     instrument = "ZCAM",
-    normalize: bool = False
+    normalize: Optional[Union[str, bool]] = None
 ):
+    data = data.copy()
+    normalize = False if normalize is None else normalize
     # make sure call kwargs have valid values
     try:
         assert (edge in EDGES for edge in plot_edges)
         assert underplot in [None, "filter", "grid"]
         assert scale_method in ["scale_to_left", "scale_to_avg", None]
         assert units in (None, "IOF", "R*")
+        assert normalize in (
+            [True, False] + list(DERIVED_CAM_DICT[instrument]["filters"])
+        )
     except AssertionError:
         raise TypeError("invalid argument")
     try:
@@ -115,8 +121,8 @@ def pretty_plot(
             else:
                 label = row["FEATURE"]
                 if (
-                        "FEATURE_SUBTYPE" in row.keys()
-                        and not pd.isnull(row["FEATURE_SUBTYPE"])
+                    "FEATURE_SUBTYPE" in row.keys()
+                    and not pd.isnull(row["FEATURE_SUBTYPE"])
                 ):
                     label += f" ({row['FEATURE_SUBTYPE']})"
             roi_labels[row_ix] = label
@@ -142,7 +148,7 @@ def pretty_plot(
         if solar_elevation is not None
         else 2 * np.pi
     )
-    if units == "R*" or normalize is True:
+    if units == "R*" or normalize is not False:
         yax_label = "Relative Reflectance"
         photometric_scaling = 1
     elif units in (None, "IOF") and solar_elevation is None:
@@ -153,7 +159,7 @@ def pretty_plot(
         photometric_scaling = np.cos(theta_rad)
 
     yax_text_suffixes = []
-    if normalize is True:
+    if normalize is not False:
         yax_text_suffixes.append("normalized")
     if type(offset) in (int, float):
         yax_text_suffixes.append(f"offset {offset}/spectrum")
@@ -177,6 +183,7 @@ def pretty_plot(
         # this is largely to convert None to NaN
         data[band] = data[band].astype(float)
     pscale = 1 / photometric_scaling
+
     if normalize is True:
         for ix in data.index:
             rmax = np.nanmax(data.loc[ix, available_bands])
@@ -185,6 +192,9 @@ def pretty_plot(
             roffset = rmin / rscale
             data.loc[ix, numeric_cols] /= rscale
             data.loc[ix, available_bands] -= roffset
+    elif normalize is not False:
+        for ix in data.index:
+            data.loc[ix, numeric_cols] /= data.loc[ix, normalize]
 
     if offset:
         for band in available_bands:

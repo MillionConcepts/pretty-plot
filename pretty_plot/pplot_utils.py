@@ -2,6 +2,7 @@ import re
 import textwrap
 from functools import partial
 from itertools import cycle
+from numbers import Number
 from pathlib import Path
 from typing import Optional, Union
 
@@ -159,13 +160,16 @@ def pretty_plot(
         photometric_scaling = np.cos(theta_rad)
 
     yax_text_suffixes = []
+    if isinstance(offset, (int, float, list)):
+        yax_text_suffixes.append(f"offset")
     if normalize is not False:
-        yax_text_suffixes.append("normalized")
-    if type(offset) in (int, float):
-        yax_text_suffixes.append(f"offset {offset}/spectrum")
-    if type(offset) == list:
-        yax_text_suffixes.append("offset for clarity")
-
+        if isinstance(normalize, str):
+            yax_text_suffixes.append(
+                f"normalized to {normalize} @ "
+                f"{DERIVED_CAM_DICT[instrument]['filters'][normalize]} nm"
+            )
+        else:
+            yax_text_suffixes.append("normalized")
     if len(yax_text_suffixes) > 0:
         yax_label = f"{yax_label} ({'& '.join(yax_text_suffixes)})"
 
@@ -197,12 +201,9 @@ def pretty_plot(
             data.loc[ix, numeric_cols] /= data.loc[ix, normalize]
 
     if offset:
-        for band in available_bands:
-            data[band] = data.apply(
-                offset_value_calculator,
-                axis=1,
-                args=(band, offset, roi_labels)
-            )
+        apply_offset(
+            data, available_bands, offset, roi_labels
+        )
     max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
     min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
     datarange = [
@@ -436,17 +437,19 @@ def make_pplot_annotation(data):
     return annotation
 
 
-def offset_value_calculator(row, band, offset, roi_labels):
-    if type(offset) in (int, float):
-        return row[band] + (offset * row.name)
-    elif type(offset) == list:
-        try:
-            if 'offset' not in roi_labels[row.name] and (offset[row.name] != 0):
-                roi_labels[row.name] += f' (offset:{offset[row.name]})'
-            return row[band] + offset[row.name]
-        except IndexError:
-            raise Exception("You must provide either a single offset or "
-                            "a list equal in length to the number of ROIs")
+def apply_offset(data, available_bands, offset, roi_labels):
+    if isinstance(offset, (list, tuple)) and len(offset) != len(roi_labels):
+        raise ValueError("You must provide either a single offset or "
+                                "a list equal in length to the number of ROIs")
+    elif isinstance(offset, Number):
+        offset = [offset * i for i in range(len(data))]
+    else:
+        raise TypeError(f"invalid offset of type {type(offset)}")
+    for b in available_bands:
+        data[b] += offset
+    for (_, r), o in zip(data.iterrows(), offset):
+        roi_labels[r.name] += f' [+{o:.1f}]'
+    return data, roi_labels
 
 
 def merge_and_drop(marslab_files, colors_to_drop=None, colors_to_keep=None, output_fn='marslab_concatenated.csv'):

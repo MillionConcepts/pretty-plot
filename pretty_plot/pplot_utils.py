@@ -65,6 +65,9 @@ def find_longest_filter(data):
     )
 
 
+VALID_ABS_MAX_RANGE = 100
+
+
 def pretty_plot(
     data,
     scale_method="scale_to_avg",
@@ -210,7 +213,15 @@ def pretty_plot(
         0.85 * pscale * np.nanmin(min_sig),
         1.05 * pscale * np.nanmax(max_sig),
         ]
-
+    # sanity check
+    if max(map(abs, datarange)) > VALID_ABS_MAX_RANGE:
+        raise ValueError(
+            f"Excessively large calculated data range (|max({datarange})| > "
+            f"{VALID_ABS_MAX_RANGE}). Bailing out to prevent memory issues. "
+            f"This is likely to indicate incorrect values in spectra mean / "
+            f"standard deviation values or excessively large offsets "
+            f"requested between spectra."
+        )
     # create the matplotlib figure we will render the plot in
     fig, ax = plt.subplots(
         figsize=(plot_width*width_sf, plot_height*height_sf), facecolor=bgcolor
@@ -234,7 +245,7 @@ def pretty_plot(
         prx_ticks = []
         for filt in left_bayers:
             position = (
-                    (F2W[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
+                (F2W[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
             )
             if filt.endswith("G"):
                 position *= 1.04

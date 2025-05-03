@@ -4,7 +4,7 @@ from functools import partial
 from itertools import cycle
 from numbers import Number
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, TypedDict
 
 import matplotlib.font_manager as mplf
 from matplotlib import pyplot as plt
@@ -26,6 +26,17 @@ FILTER_TO_WAVELENGTH = pd.DataFrame(F2W)
 
 EDGES = ("left", "right", "top", "bottom")
 CREDIT_TEXT = "Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC"
+
+# path to file containing referenced font
+TITILLIUM = Path(
+    Path(__file__).parent, "static/fonts/TitilliumWeb-Light.ttf"
+)
+# can also include other face properties, different fonts, etc.
+LABEL_FP = mplf.FontProperties(fname=TITILLIUM, size=26)
+TICK_FP = mplf.FontProperties(fname=TITILLIUM, size=23)
+LEGEND_FP = mplf.FontProperties(fname=TITILLIUM, size=23)
+TICK_MINOR_FP = mplf.FontProperties(fname=TITILLIUM, size=12)
+METADATA_FP = mplf.FontProperties(fname=TITILLIUM, size=22)
 
 
 def plot_filter_profiles(ax, datarange, inst="ZCAM"):
@@ -68,85 +79,67 @@ def find_longest_filter(data):
 VALID_ABS_MAX_RANGE = 100
 
 
-def pretty_plot(
-    data,
-    scale_method="scale_to_avg",
-    plot_fn=None,
-    solar_elevation=None,
-    units=None,
-    plot_width=15,
-    plot_height=12,
-    bgcolor="white",
-    plot_edges=("left", "bottom"),
-    underplot=None,
-    sym=None,
-    offset=None,
-    plt_bayer=True,
-    roi_labels=None,
-    annotation=None,
-    width_sf: "x" = 1,
-    height_sf: "y" = 1,
-    instrument = "ZCAM",
-    normalize: Optional[Union[str, bool]] = None
-):
-    data = data.copy()
-    normalize = False if normalize is None else normalize
-    # make sure call kwargs have valid values
-    try:
-        assert (edge in EDGES for edge in plot_edges)
-        assert underplot in [None, "filter", "grid"]
-        assert scale_method in ["scale_to_left", "scale_to_avg", None]
-        assert units in (None, "IOF", "R*")
-        assert normalize in (
-            [True, False] + list(DERIVED_CAM_DICT[instrument]["filters"])
-        )
-    except AssertionError:
-        raise TypeError("invalid argument")
-    try:
-        data = scale_eyes(data, scale_method, instrument)
-    except InstrumentIsMonocular:
-        pass
+class ObservationGeometry(TypedDict):
+    incidence: float
+    emission: float
+    phase: float
 
-    # NOTE: these DataFrame.replace() calls should generally be fine because
-    # any column with a "-" or "" is already of object dtype
 
-    # for files where we've replaced nulls with '-' to make people feel better
-    data = data.replace("-", None)
-    # for many circumstances
-    data = data.replace("", None)
-
-    # set up the legend: use FEATURE + FEATURE_SUBTYPE when possible,
-    # FEATURE when not, COLOR as a last resort
-    if not roi_labels:
-        roi_labels = {}
-        for row_ix, row in data.iterrows():
-            if "FEATURE" not in row.keys() or pd.isnull(row["FEATURE"]):
-                label = row["COLOR"]
-            else:
-                label = row["FEATURE"]
-                if (
-                    "FEATURE_SUBTYPE" in row.keys()
-                    and not pd.isnull(row["FEATURE_SUBTYPE"])
-                ):
-                    label += f" ({row['FEATURE_SUBTYPE']})"
-            roi_labels[row_ix] = label
-    # adding this to slightly increase robustness
-    data = data.drop(columns=data.columns[data.isna().all()])
-    # path to file containing referenced font
-    titillium = Path(
-        Path(__file__).parent, "static/fonts/TitilliumWeb-Light.ttf"
+def _make_legend(ax, data, datadomain, max_filter):
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        np.array(handles)[np.argsort(data[max_filter].values)].tolist()[::-1],
+        np.array(labels)[np.argsort(data[max_filter].values)].tolist()[::-1],
+        loc=2,
+        bbox_to_anchor=[
+            (1038 - datadomain[0])
+            / (datadomain[1] - datadomain[0]),  # left edge goes at 1038nm
+            0.99,
+        ],
+        labelspacing=0.3,
+        borderpad=0.1,
+        prop=LEGEND_FP,
+        facecolor="white",
+        markerscale=0.8,
+        handletextpad=0,
+        handlelength=3,
     )
-    # can also include other face properties, different fonts, etc.
-    label_fp = mplf.FontProperties(fname=titillium, size=26)
-    tick_fp = mplf.FontProperties(fname=titillium, size=23)
-    legend_fp = mplf.FontProperties(fname=titillium, size=23)
-    tick_minor_fp = mplf.FontProperties(fname=titillium, size=12)
-    metadata_fp = mplf.FontProperties(fname=titillium, size=22)
 
-    # TODO: Handle the case where solar_elevation is not the same for all of
-    #  the spectra in the input marslab file, e.g. a file composited across
-    #  observations. Can fix the existence check and make sure solar_elevation
-    #  is an np.array but that will create an interface hassle...
+
+def _set_up_bayer_ticks(data, datadomain, prx):
+    left_bayers = [k for k in data.columns if re.match(r"L0[RGB]$", k)]
+    prx_ticks = []
+    for filt in left_bayers:
+        position = (
+                (F2W[filt][0] - datadomain[0])
+                / (datadomain[1] - datadomain[0])
+        )
+        if filt.endswith("G"):
+            position *= 1.04
+        prx_ticks.append(position)
+    prx.set_xticks(prx_ticks, minor=True)
+    prx.set_xticklabels(
+        [f"L0{k[-1]}\nR0{k[-1]}" for k in left_bayers],
+        minor=True,
+        fontproperties=TICK_MINOR_FP,
+    )
+
+
+def _handle_normalization(available_bands, data, normalize, numeric_cols):
+    if normalize is True:
+        for ix in data.index:
+            rmax = np.nanmax(data.loc[ix, available_bands])
+            rmin = np.nanmin(data.loc[ix, available_bands])
+            rscale = rmax - rmin
+            roffset = rmin / rscale
+            data.loc[ix, numeric_cols] /= rscale
+            data.loc[ix, available_bands] -= roffset
+    elif normalize is not False:
+        for ix in data.index:
+            data.loc[ix, numeric_cols] /= data.loc[ix, normalize]
+
+
+def _handle_photometric_scaling(normalize, solar_elevation, units):
     theta_rad = (
         (90 - solar_elevation) * 2 * np.pi / 360
         if solar_elevation is not None
@@ -161,7 +154,157 @@ def pretty_plot(
     else:
         yax_label = "Relative Reflectance"
         photometric_scaling = np.cos(theta_rad)
+    return photometric_scaling, yax_label
 
+
+def _check_cell_kwargs(instrument, normalize, plot_edges, scale_method,
+                       underplot, units):
+    try:
+        assert (edge in EDGES for edge in plot_edges)
+        assert underplot in [None, "filter", "grid"]
+        assert scale_method in ["scale_to_left", "scale_to_avg", None]
+        assert units in (None, "IOF", "R*")
+        assert normalize in (
+                [True, False] + list(DERIVED_CAM_DICT[instrument]["filters"])
+        )
+    except AssertionError:
+        raise TypeError("invalid argument")
+
+
+def _make_roi_labels(data, roi_labels):
+    """
+    set up the legend: use FEATURE + FEATURE_SUBTYPE when possible, FEATURE
+    when not, COLOR as a last resort
+    """
+    if roi_labels:
+        return roi_labels
+    roi_labels = {}
+    for row_ix, row in data.iterrows():
+        if "FEATURE" not in row.keys() or pd.isnull(row["FEATURE"]):
+            label = row["COLOR"]
+        else:
+            label = row["FEATURE"]
+            if (
+                    "FEATURE_SUBTYPE" in row.keys()
+                    and not pd.isnull(row["FEATURE_SUBTYPE"])
+            ):
+                label += f" ({row['FEATURE_SUBTYPE']})"
+        roi_labels[row_ix] = label
+    return roi_labels
+
+
+def check_incidence_validity(observation_geometry, solar_elevation):
+    if np.isclose(
+        90 - solar_elevation,
+        observation_geometry['incidence'],
+        rtol=1e-2,
+        atol=1e-2
+    ):
+        return
+    raise ValueError(
+        f"90 - solar elevation should equal incidence angle. Got "
+        f"{90 - solar_elevation} / {observation_geometry['incidence']}"
+    )
+
+
+def obsgeom_string(obsgeom: ObservationGeometry) -> str:
+    return (
+        f"[i={round(obsgeom['incidence'])}° "
+        f"e={round(obsgeom['emission'])}° p={round(obsgeom['phase'])}°]"
+    )
+
+def make_pplot_annotation(data: pd.DataFrame,
+                          obsgeom: ObservationGeometry | None) -> str:
+    line = data.to_dict('records')[0]
+    annotation = ""
+    if 'NAME' in line.keys():
+        annotation += f'{line["NAME"]}, '
+    if 'SOL' in line.keys():
+        annotation += f'sol {line["SOL"]}, '
+    if 'SEQ_ID' in line.keys():
+        annotation += f'zcam{line["SEQ_ID"][4:]}, '
+    if 'RSM' in line.keys():
+        annotation += f'rsm {line["RSM"]}'
+    if obsgeom is not None:
+        annotation += f" {obsgeom_string(obsgeom)}"
+    return annotation
+
+
+def _plt_bayers(ax, data, i, photometric_scaling, symbol):
+    for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
+        try:
+            ax.errorbar(
+                FILTER_TO_WAVELENGTH[bayer].values[0],
+                data.iloc[i][bayer] / photometric_scaling,
+                yerr=data.iloc[i][[f"{bayer}_STD"]],
+                fmt=f"{symbol}",
+                color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
+                capsize=5,
+                fillstyle="none" if bayer.startswith("R") else "full",
+                markersize=8,
+                alpha=0.3,
+            )
+        except KeyError:
+            continue  # Missing information for this filter
+
+
+def _apply_offset(data, available_bands, offset, roi_labels):
+    if isinstance(offset, (list, tuple)) and len(offset) != len(roi_labels):
+        raise ValueError("You must provide either a single offset or "
+                         "a list equal in length to the number of ROIs")
+    elif isinstance(offset, Number):
+        offset = [offset * i for i in range(len(data))]
+    else:
+        raise TypeError(f"invalid offset of type {type(offset)}")
+    for b in available_bands:
+        data[b] += offset
+    for (_, r), o in zip(data.iterrows(), offset):
+        roi_labels[r.name] += f' [+{o:.1f}]'
+    return data, roi_labels
+
+
+def _plot_symbols(ax, data, i, ix, markersizes, notna_narrow,
+                  photometric_scaling, roi_labels, symbol):
+    ax.scatter(
+        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
+        marker=f"{symbol}",
+        color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
+        edgecolors="k",
+        # scatter takes units of pixel**2
+        s=np.array(markersizes)[ix] ** 2,
+        alpha=0.5,
+        label=("\n".join(textwrap.wrap(roi_labels[i], width=20,
+                                       break_long_words=False))),
+    )
+
+
+def _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling):
+    ax.errorbar(
+        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
+        yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
+        fmt=f"-",
+        color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
+        markersize=10,
+        alpha=0.5,
+        linewidth=3,
+    )
+
+
+def _plot_errorbars(ax, data, i, ix, notna_narrow, photometric_scaling):
+    ax.errorbar(
+        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
+        yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
+        fmt=f"",
+        color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
+        alpha=0.5,
+        capsize=5,
+    )
+
+
+def _make_yax_label(instrument, normalize, offset, yax_label):
     yax_text_suffixes = []
     if isinstance(offset, (int, float, list)):
         yax_text_suffixes.append(f"offset")
@@ -175,6 +318,156 @@ def pretty_plot(
             yax_text_suffixes.append("normalized")
     if len(yax_text_suffixes) > 0:
         yax_label = f"{yax_label} ({'& '.join(yax_text_suffixes)})"
+    return yax_label
+
+
+def _plot_roi(ax, data, i, narrow, photometric_scaling, plt_bayer, roi_labels,
+              sym):
+    symbol = next(sym)
+    # Plot narrowband filters as connected
+    notna_narrow = [f for f in narrow if np.isfinite(data.iloc[i][f])]
+    markersizes = [
+        8 if len(k) == 3 else 13 for k in notna_narrow
+    ]  # plot bayers w/ smaller symbols
+    ix = np.argsort(FILTER_TO_WAVELENGTH[notna_narrow].values[0])
+    _plot_errorbars(ax, data, i, ix, notna_narrow, photometric_scaling)
+    _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling)
+    _plot_symbols(ax, data, i, ix, markersizes, notna_narrow,
+                  photometric_scaling, roi_labels, symbol)
+    # Plot bayer separately as smaller markers, w/ left eye filled and
+    #  right as outlines
+    # TODO: add black outlines to the bayer filters
+    if plt_bayer is True:
+        _plt_bayers(ax, data, i, photometric_scaling, symbol)
+
+
+def _make_symgen(sym):
+    if sym is None:
+        sym = cycle(
+            ["s", "o", "D", "p", "^", "v", "P", "X", "*", "d", "H", "8", "h"]
+        )
+    else:
+        sym = iter(sym)
+    return sym
+
+
+def _make_titleprinter(fig):
+    return partial(
+        fig.axes[0].text,
+        horizontalalignment="left",
+        verticalalignment="center",
+        transform=fig.axes[0].transAxes,
+        fontproperties=METADATA_FP
+    )
+
+
+def _calculate_datarange(available_bands, data, pscale):
+    max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
+    min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
+    datarange = [
+        0.85 * pscale * np.nanmin(min_sig),
+        1.05 * pscale * np.nanmax(max_sig),
+    ]
+    # sanity check
+    if max(map(abs, datarange)) > VALID_ABS_MAX_RANGE:
+        raise ValueError(
+            f"Excessively large calculated data range (|max({datarange})| > "
+            f"{VALID_ABS_MAX_RANGE}). Bailing out to prevent memory issues. "
+            f"This is likely to indicate incorrect values in spectra mean / "
+            f"standard deviation values or excessively large offsets "
+            f"requested between spectra."
+        )
+    return datarange
+
+
+def _make_narrowband_ticks(available_bands, datadomain, narrow, prx):
+    prx.set_xticks(
+        (FILTER_TO_WAVELENGTH[narrow].values[0] - datadomain[0])
+        / (datadomain[1] - datadomain[0])
+    )
+    if ("L1" in available_bands) and ("R1" in available_bands):
+        L1_R1_label = "L1\nR1"
+    elif "L1" in available_bands:
+        L1_R1_label = "L1"
+    else:
+        L1_R1_label = "R1"
+    prx.set_xticklabels(
+        [k.replace("L1", L1_R1_label) for k in narrow],
+        fontproperties=TICK_FP,
+    )
+
+
+def _set_left_yax_ticks(ax, datarange):
+    # To define the y-axis extent, we add a little margin to the actual
+    # min/max data values and then round to the nearest tenth. The ylims
+    # will always be even tenths.
+    tenths = np.arange(0, np.ceil(datarange[1] * 10), dtype='u1')
+    ytick_pos = tenths[
+        (tenths <= np.floor(datarange[1] * 10))
+        & (tenths >= np.ceil(datarange[0] * 10))
+        ]
+    # don't permit a massive quantity of ticks
+    if len(ytick_pos) > 10:
+        ytick_pos = ytick_pos[None:None:2]
+    ax.set_yticks(ytick_pos / 10)
+    ax.set_yticklabels(
+        [str(round(t, 1)) for t in ytick_pos / 10], fontproperties=TICK_FP,
+    )
+    ax.tick_params(length=6)
+
+
+def pretty_plot(
+    data,
+    scale_method="scale_to_avg",
+    plot_fn=None,
+    solar_elevation=None,
+    units=None,
+    plot_width=15,
+    plot_height=12,
+    bgcolor="white",
+    plot_edges=("left", "bottom"),
+    underplot=None,
+    symgen=None,
+    offset=None,
+    plt_bayer=True,
+    roi_labels=None,
+    annotation=None,
+    width_sf: "x" = 1,
+    height_sf: "y" = 1,
+    instrument = "ZCAM",
+    normalize: Optional[Union[str, bool]] = None,
+    observation_geometry: ObservationGeometry | None = None
+):
+    if observation_geometry is not None and solar_elevation is not None:
+        check_incidence_validity(observation_geometry, solar_elevation)
+    data = data.copy()
+    normalize = False if normalize is None else normalize
+    # make sure call kwargs have valid values
+    _check_cell_kwargs(instrument, normalize, plot_edges, scale_method,
+                       underplot, units)
+    try:
+        data = scale_eyes(data, scale_method, instrument)
+    except InstrumentIsMonocular:
+        pass
+    # NOTE: these DataFrame.replace() calls should generally be fine because
+    # any column with a "-" or "" is already of object dtype
+
+    # for files where we've replaced nulls with '-' to make people feel better
+    data = data.replace("-", None)
+    # for many circumstances
+    data = data.replace("", None)
+    roi_labels = _make_roi_labels(data, roi_labels)
+    # adding this to slightly increase robustness
+    data = data.drop(columns=data.columns[data.isna().all()])
+
+    # TODO: Handle the case where solar_elevation is not the same for all of
+    #  the spectra in the input marslab file, e.g. a file composited across
+    #  observations. Can fix the existence check and make sure solar_elevation
+    #  is an np.array but that will create an interface hassle...
+    photometric_scaling, yax_label = _handle_photometric_scaling(
+        normalize, solar_elevation, units
+    )
+    yax_label = _make_yax_label(instrument, normalize, offset, yax_label)
 
     # Pre-define the plot extents so that they are easy to reuse
     lpad, rpad = (20, 60)
@@ -190,38 +483,12 @@ def pretty_plot(
         # this is largely to convert None to NaN
         data[band] = data[band].astype(float)
     pscale = 1 / photometric_scaling
-
-    if normalize is True:
-        for ix in data.index:
-            rmax = np.nanmax(data.loc[ix, available_bands])
-            rmin = np.nanmin(data.loc[ix, available_bands])
-            rscale = rmax - rmin
-            roffset = rmin / rscale
-            data.loc[ix, numeric_cols] /= rscale
-            data.loc[ix, available_bands] -= roffset
-    elif normalize is not False:
-        for ix in data.index:
-            data.loc[ix, numeric_cols] /= data.loc[ix, normalize]
-
+    _handle_normalization(available_bands, data, normalize, numeric_cols)
     if offset:
-        apply_offset(
+        _apply_offset(
             data, available_bands, offset, roi_labels
         )
-    max_sig = [data[f] + data[f"{f}_STD"] for f in available_bands]
-    min_sig = [data[f] - data[f"{f}_STD"] for f in available_bands]
-    datarange = [
-        0.85 * pscale * np.nanmin(min_sig),
-        1.05 * pscale * np.nanmax(max_sig),
-        ]
-    # sanity check
-    if max(map(abs, datarange)) > VALID_ABS_MAX_RANGE:
-        raise ValueError(
-            f"Excessively large calculated data range (|max({datarange})| > "
-            f"{VALID_ABS_MAX_RANGE}). Bailing out to prevent memory issues. "
-            f"This is likely to indicate incorrect values in spectra mean / "
-            f"standard deviation values or excessively large offsets "
-            f"requested between spectra."
-        )
+    datarange = _calculate_datarange(available_bands, data, pscale)
     # create the matplotlib figure we will render the plot in
     fig, ax = plt.subplots(
         figsize=(plot_width*width_sf, plot_height*height_sf), facecolor=bgcolor
@@ -233,29 +500,15 @@ def pretty_plot(
     xtick_pos = np.linspace(datadomain[0] + lpad, datadomain[1] - rpad, 8)
     ax.set_xticks(xtick_pos)
     ax.set_xticklabels(
-        xtick_pos.astype(np.int16).tolist(), fontproperties=tick_fp
+        xtick_pos.astype(np.int16).tolist(), fontproperties=TICK_FP
     )
-    ax.set_xlabel("wavelength (nm)", fontproperties=label_fp)
+    ax.set_xlabel("wavelength (nm)", fontproperties=LABEL_FP)
     # Set the minor ticks of the top axis with the bayer filters
     prx = ax.twiny()
     # Remove spines _not_ listed in `plot_edges`
     despine(prx, edges=list(set(EDGES).difference(set(plot_edges))))
     if plt_bayer:
-        left_bayers = [k for k in data.columns if re.match(r"L0[RGB]$", k)]
-        prx_ticks = []
-        for filt in left_bayers:
-            position = (
-                (F2W[filt][0] - datadomain[0]) / (datadomain[1] - datadomain[0])
-            )
-            if filt.endswith("G"):
-                position *= 1.04
-            prx_ticks.append(position)
-        prx.set_xticks(prx_ticks, minor=True)
-        prx.set_xticklabels(
-            [f"L0{k[-1]}\nR0{k[-1]}" for k in left_bayers],
-            minor=True,
-            fontproperties=tick_minor_fp,
-        )
+        _set_up_bayer_ticks(data, datadomain, prx)
     # Set the major ticks of the top axis with the narrowband filters
     # only graph L1 from L1/R1, if it's available
     if "L1" in available_bands:
@@ -264,215 +517,61 @@ def pretty_plot(
         ]
     else:
         narrow = [k for k in available_bands if ("0" not in k)]
-    prx.set_xticks(
-        (FILTER_TO_WAVELENGTH[narrow].values[0] - datadomain[0])
-        / (datadomain[1] - datadomain[0])
-    )
-    if ("L1" in available_bands) and ("R1" in available_bands):
-        L1_R1_label = "L1\nR1"
-    elif "L1" in available_bands:
-        L1_R1_label = "L1"
-    else:
-        L1_R1_label = "R1"
-    prx.set_xticklabels(
-        [k.replace("L1", L1_R1_label) for k in narrow],
-        fontproperties=tick_fp,
-    )
-
+    _make_narrowband_ticks(available_bands, datadomain, narrow, prx)
     if underplot == "filter":
         plot_filter_profiles(ax, datarange)
     elif underplot == "grid":
         ax.grid(axis="y", alpha=0.2)
         ax.grid(axis="x", alpha=0.2)
-
     ax.set_ylim(datarange)
     ax.set_ylim(datarange)
-    ax.set_ylabel(yax_label, fontproperties=label_fp)
-
-    # To define the y-axis extent, we add a little margin to the actual
-    # min/max data values and then round to the nearest tenth. The ylims
-    # will always be even tenths.
-
-    # Set the ticks for the left yaxis
-    tenths = np.arange(0, np.ceil(datarange[1] * 10), dtype='u1')
-    ytick_pos = tenths[
-        (tenths <= np.floor(datarange[1] * 10))
-        & (tenths >= np.ceil(datarange[0] * 10))
-    ]
-    # don't permit a massive quantity of ticks
-    if len(ytick_pos) > 10:
-        ytick_pos = ytick_pos[None:None:2]
-    ax.set_yticks(ytick_pos / 10)
-    ax.set_yticklabels(
-        [str(round(t, 1)) for t in ytick_pos / 10], fontproperties=tick_fp,
-    )
-    ax.tick_params(length=6)
+    ax.set_ylabel(yax_label, fontproperties=LABEL_FP)
+    _set_left_yax_ticks(ax, datarange)
 
     # Plot the requested lab spectra - dev functionality
     # plot_lab_spectra(ax,minerals=["Pyrrhotite","Magnetite","Ferrosilite"])
 
     # Plot the observational data
-    if sym is None:
-        sym = cycle(
-            ["s", "o", "D", "p", "^", "v", "P", "X", "*", "d", "H", "8", "h"]
-        )
-    else:
-        sym = iter(sym)
+    symgen = _make_symgen(symgen)
     for i in range(len(data.index)):
-        symbol = next(sym)
-        # Plot narrowband filters as connected
-        notna_narrow = [f for f in narrow if np.isfinite(data.iloc[i][f])]
-        markersizes = [
-            8 if len(k) == 3 else 13 for k in notna_narrow
-        ]  # plot bayers w/ smaller symbols
-        ix = np.argsort(FILTER_TO_WAVELENGTH[notna_narrow].values[0])
-        # plot the errorbars
-        ax.errorbar(
-            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
-            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
-            fmt=f"",
-            color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
-            alpha=0.5,
-            capsize=5,
-            )
-
-        # plot the line
-        ax.errorbar(
-            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
-            yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
-            fmt=f"-",
-            color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
-            markersize=10,
-            alpha=0.5,
-            linewidth=3,
-            )
-
-        # plot the symbols
-        ax.scatter(
-            FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
-            data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
-            marker=f"{symbol}",
-            color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
-            edgecolors="k",
-            # scatter takes units of pixel**2
-            s=np.array(markersizes)[ix] ** 2,
-            alpha=0.5,
-            label=(
-                "\n".join(
-                    textwrap.wrap(
-                        roi_labels[i],
-                        width=20,
-                        break_long_words=False,
-                    )
-                )
-            ),
-            )
-
-        # Plot bayer separately as smaller markers, w/ left eye filled and
-        #  right as outlines
-        # TODO: add black outlines to the bayer filters
-        if plt_bayer is True:
-            for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
-                try:
-                    ax.errorbar(
-                        FILTER_TO_WAVELENGTH[bayer].values[0],
-                        data.iloc[i][bayer] / photometric_scaling,
-                        yerr=data.iloc[i][[f"{bayer}_STD"]],
-                        fmt=f"{symbol}",
-                        color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
-                        capsize=5,
-                        fillstyle="none" if bayer.startswith("R") else "full",
-                        markersize=8,
-                        alpha=0.3,
-                        )
-                except KeyError:
-                    continue  # Missing information for this filter
+        _plot_roi(ax, data, i, narrow, photometric_scaling, plt_bayer,
+                  roi_labels, symgen)
     ax.set_zorder(1)  # adjust the rendering order of twin axes
     ax.set_frame_on(False)  # make it transparent
 
     # Reorder according to the longest wavelength filter with data.
     max_filter = find_longest_filter(data)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(
-        np.array(handles)[np.argsort(data[max_filter].values)].tolist()[::-1],
-        np.array(labels)[np.argsort(data[max_filter].values)].tolist()[::-1],
-        loc=2,
-        bbox_to_anchor=[
-            (1038 - datadomain[0])
-            / (datadomain[1] - datadomain[0]),  # left edge goes at 1038nm
-            0.99,
-            ],
-        labelspacing=0.3,
-        borderpad=0.1,
-        prop=legend_fp,
-        facecolor="white",
-        markerscale=0.8,
-        handletextpad=0,
-        handlelength=3,
-    )
-    titleprint = partial(
-        fig.axes[0].text,
-        horizontalalignment="left",
-        verticalalignment="center",
-        transform=fig.axes[0].transAxes,
-        fontproperties=metadata_fp
-    )
+    _make_legend(ax, data, datadomain, max_filter)
+    titleprint = _make_titleprinter(fig)
+    # TODO: what's this dead code from?
     # titleprint(s=make_pplot_annotation(data), x=0.458, y=-0.132)
     if annotation:
         titleprint(s=annotation, x=-0.088/width_sf, y=-0.1182/height_sf)
     else:
-        titleprint(s=make_pplot_annotation(data), x=-0.088/width_sf, y=-0.1182/height_sf)
-
+        titleprint(s=make_pplot_annotation(data, observation_geometry),
+                   x=-0.088/width_sf, y=-0.1182/height_sf)
+    # TODO: what's this dead code from?
     # titleprint(s=CREDIT_TEXT, x=0.348, y=-0.177)
-    titleprint(
-        s=CREDIT_TEXT.replace("Credit:", ""), x=-0.088/width_sf, y=-0.1520/height_sf
-    )
-
+    titleprint(s=CREDIT_TEXT.replace("Credit:", ""), x=-0.088/width_sf,
+               y=-0.1520/height_sf)
     if plot_fn:
         fig.savefig(plot_fn, bbox_inches="tight")
 
 
-def make_pplot_annotation(data):
-    line = data.to_dict('records')[0]
-    annotation = ""
-    if 'NAME' in line.keys():
-        annotation += f'{line["NAME"]}, '
-    if 'SOL' in line.keys():
-        annotation += f'sol {line["SOL"]}, '
-    if 'SEQ_ID' in line.keys():
-        annotation += f'zcam{line["SEQ_ID"][4:]}, '
-    if 'RSM' in line.keys():
-        annotation += f'rsm {line["RSM"]}'
-    return annotation
-
-
-def apply_offset(data, available_bands, offset, roi_labels):
-    if isinstance(offset, (list, tuple)) and len(offset) != len(roi_labels):
-        raise ValueError("You must provide either a single offset or "
-                                "a list equal in length to the number of ROIs")
-    elif isinstance(offset, Number):
-        offset = [offset * i for i in range(len(data))]
-    else:
-        raise TypeError(f"invalid offset of type {type(offset)}")
-    for b in available_bands:
-        data[b] += offset
-    for (_, r), o in zip(data.iterrows(), offset):
-        roi_labels[r.name] += f' [+{o:.1f}]'
-    return data, roi_labels
-
-
-def merge_and_drop(marslab_files, colors_to_drop=None, colors_to_keep=None, output_fn='marslab_concatenated.csv'):
+def merge_and_drop(marslab_files, colors_to_drop=None, colors_to_keep=None,
+                   output_fn='marslab_concatenated.csv'):
     data = pd.DataFrame()
     for idx, fn in enumerate(marslab_files):
         marslab_data = pd.read_csv(fn, na_values="-")
         if colors_to_drop and colors_to_keep:
-            raise ValueError("You cannot specify both colors to drop and colors to keep.")
+            raise ValueError("You cannot specify both colors to drop and "
+                             "colors to keep.")
         if colors_to_drop:
-            marslab_data = marslab_data[~marslab_data['COLOR'].isin(colors_to_drop[idx])]
+            marslab_data = marslab_data[~marslab_data['COLOR']
+                                        .isin(colors_to_drop[idx])]
         elif colors_to_keep:
-            marslab_data = marslab_data[marslab_data['COLOR'].isin(colors_to_keep[idx])]
+            marslab_data = marslab_data[marslab_data['COLOR']
+                                        .isin(colors_to_keep[idx])]
         data = pd.concat([data, marslab_data], ignore_index=True)
     print("Writing " + output_fn)
     data.to_csv(output_fn, index=False)

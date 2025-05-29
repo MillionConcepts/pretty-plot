@@ -210,7 +210,7 @@ def check_incidence_validity(observation_geometry, solar_elevation):
 def obsgeom_string(obsgeom: ObservationGeometry) -> str:
     return (
         f"[i={round(obsgeom['incidence'])}° "
-        f"e={round(obsgeom['emission'])}° p={round(obsgeom['phase'])}°]"
+        f"e={round(obsgeom['emission'])}° g={round(obsgeom['phase'])}°]"
     )
 
 def make_pplot_annotation(data: pd.DataFrame,

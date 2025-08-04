@@ -252,6 +252,8 @@ def _apply_offset(data, available_bands, offset, roi_labels):
     if isinstance(offset, (list, tuple)) and len(offset) != len(roi_labels):
         raise ValueError("You must provide either a single offset or "
                          "a list equal in length to the number of ROIs")
+    elif isinstance(offset, (list, tuple)):
+        pass
     elif isinstance(offset, Number):
         offset = [offset * i for i in range(len(data))]
     else:

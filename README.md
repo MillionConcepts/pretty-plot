@@ -44,9 +44,9 @@ Install the updates in your pretty-plot conda environment:
 - Any time something is not working as expected, a good first step is to check if the pretty-plot conda environment is active.
 
 - Normally you can run pretty plot from any location, but during initial setup and updates the `pip install .` command must be run from within the pretty-plot directory. 
-    - If you are getting errors, try running the `ls` command. If pplot.py is listed in the output, then you are in the right directory. If you don't see that file, navigate to the correct directory with `cd`.
+    - If you are getting errors, try running the `ls` command. If pplot.py is listed in the output, then you are in the right directory. If you don't see that file, navigate to the correct directory with `cd` and try the pip install again.
 
-- Sometimes a fresh conda environment will solve the problem. First navigate to your pretty-plot directory with `cd`, then the steps to remove and recreate the pretty-plot environment are:
+- Sometimes a fresh conda environment will solve the problem. First navigate to your pretty-plot directory with `cd`. After that, the steps to remove and recreate the pretty-plot environment are:
     
     `conda activate`
     
@@ -57,7 +57,6 @@ Install the updates in your pretty-plot conda environment:
     `conda activate pretty-plot`
     
     `pip install .`
-
 
 ---
 The contents of this repo are provided by the Western Washington University Reflectance Lab (PI: M. Rice) and Million Concepts (C. Million, M. St. Clair, S.V. Brown) under a BSD 3-Clause License. You may do nearly anything that you want with this code. If you have any questions, leave us a Github Issue.

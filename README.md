@@ -18,7 +18,7 @@ The Pretty Plot.ipynb file in this repo is a jupyter notebook tutorial for how t
 
 `jupyter notebook`
 
-Now, follow the instructions output on the command line to open a juptyer notebook session in your browser (crtl+click on the url) and click on Pretty Plot.ipynb.
+Now, follow the instructions output on the command line to open a jupyter notebook session in your browser (crtl+click on the url) and click on Pretty Plot.ipynb. For a streamlined description of other advanced options, click on brief_examples.ipynb.
 
 ### From the command line
 You can also run pretty plot directly from the command line. To do that, make sure your pretty-plot conda environment has been activated, then run the `pplot` command. For example:

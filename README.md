@@ -59,6 +59,6 @@ Install the updates in your pretty-plot conda environment:
     `pip install .`
 
 ---
-The contents of this repo are provided by the Western Washington University Reflectance Lab (PI: M. Rice) and Million Concepts (C. Million, M. St. Clair, S.V. Brown) under a BSD 3-Clause License. You may do nearly anything that you want with this code. If you have any questions, leave us a Github Issue.
+The contents of this repo are provided by the Western Washington University Reflectance Lab (PI: M. Rice) and Million Concepts (C. Million, M. St. Clair, S. Curtis, S.V. Brown) under a BSD 3-Clause License. You may do nearly anything that you want with this code. If you have any questions, leave us a Github Issue.
 
 `MERTools`/`MERspect` is proprietary software (Arizona State University) for rover tactical operations made available on an as-needed basis.

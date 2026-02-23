@@ -29,8 +29,7 @@ dependencies = [
     "matplotlib",
     "jupyter",
     "fire",
-    "marslab",
-    "fs"
+    "marslab"
 ]
 
 [project.urls]

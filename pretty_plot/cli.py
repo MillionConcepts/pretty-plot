@@ -1,5 +1,7 @@
 import sys
 
+from pretty_plot.fileutils import FileRoot
+
 
 def looks_like_marslab(fn: str) -> bool:
     return bool(
@@ -37,10 +39,7 @@ def do_pplot(
         regardless of what specific file you passed it
     """
     from pathlib import Path
-    import warnings
 
-    from fs.osfs import OSFS
-    import numpy as np
     import pandas as pd
 
     import pretty_plot.pplot_utils as pplot_utils
@@ -49,10 +48,10 @@ def do_pplot(
     # TODO, maybe: merge or something with handle_pretty_plot()
     path = Path(path_or_file)
     if recursive:
-        tree = OSFS(directory_of(path))
+        tree = FileRoot(directory_of(path))
         marslab_files = map(
             tree.getsyspath,
-            filter(looks_like_marslab, tree.walk.files())
+            filter(looks_like_marslab, (str(f) for f in tree.walk()))
         )
     elif path.is_dir():
         marslab_files = filter(looks_like_marslab, map(str, path.iterdir()))

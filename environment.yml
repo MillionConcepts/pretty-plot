@@ -10,4 +10,3 @@ dependencies:
   - jupyter
   - fire
   - marslab
-  - fs

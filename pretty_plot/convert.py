@@ -19,8 +19,9 @@ class InstrumentIsMonocular(TypeError):
 def scale_eyes(data, method="scale_to_avg", instrument="ZCAM"):
     if method is None:
         return data
-    if "L1" not in data.columns and "R1" not in data.columns:
-        raise InstrumentIsMonocular
+    if "L1" not in data.columns or "R1" not in data.columns:
+        # shared filters don't exist
+        return data
     # Accepts a "marslab format" spectra file pandas DataFrame
     # This translation is done _in place_... which is maybe bad...
     #    but will be fine as long as you always restart + rerun

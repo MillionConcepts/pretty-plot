@@ -481,7 +481,7 @@ def pretty_plot(
         k for k in data.keys() if k in DERIVED_CAM_DICT[instrument]["filters"]
     ]
     numeric_cols = available_bands + [f"{b}_STD" for b in available_bands]
-    for band in available_bands:
+    for band in numeric_cols:
         # this is largely to convert None to NaN
         data[band] = data[band].astype(float)
     pscale = 1 / photometric_scaling

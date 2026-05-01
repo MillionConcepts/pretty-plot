@@ -229,10 +229,10 @@ def make_pplot_annotation(data: pd.DataFrame,
     if 'SOL' in line.keys():
         annotation += f'sol {line["SOL"]}, '
     if 'SEQ_ID' in line.keys():
-        annotation += line["SEQ_ID"]
+        annotation += f'{line["SEQ_ID"]}, '
     # PCAM only
     if 'SEQ_VER' in line.keys():
-        annotation += f"seq_ver {line['SEQ_VER']}"
+        annotation += f"seq_ver {line['SEQ_VER']}, "
     # ZCAM / MCAM
     if 'RSM' in line.keys():
         annotation += f'rsm {line["RSM"]}'

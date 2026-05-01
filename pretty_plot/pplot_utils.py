@@ -19,10 +19,16 @@ from marslab.imgops.pltutils import despine
 
 from pretty_plot.convert import scale_eyes, InstrumentIsMonocular
 
-F2W = dict((v, [k]) for k, v in WAVELENGTH_TO_FILTER["ZCAM"]["L"].items())
-for k, v in WAVELENGTH_TO_FILTER["ZCAM"]["R"].items():
-    F2W[v] = [k]
-FILTER_TO_WAVELENGTH = pd.DataFrame(F2W)
+
+def filter_to_wavelength(instrument):
+    f2w = {
+        v: [k] for k, v in WAVELENGTH_TO_FILTER[instrument]["L"].items()
+    }
+    f2w |= {
+        v: [k] for k, v in WAVELENGTH_TO_FILTER[instrument]["R"].items()
+    }
+    return pd.DataFrame(f2w)
+
 
 EDGES = ("left", "right", "top", "bottom")
 CREDIT_TEXT = "Credit:NASA/JPL/ASU/MSSS/Cornell/WWU/MC"
@@ -106,12 +112,13 @@ def _make_legend(ax, data, datadomain, max_filter):
     )
 
 
-def _set_up_bayer_ticks(data, datadomain, prx):
+def _set_up_bayer_ticks(data, datadomain, prx, instrument):
     left_bayers = [k for k in data.columns if re.match(r"L0[RGB]$", k)]
     prx_ticks = []
+    f2w = filter_to_wavelength(instrument)
     for filt in left_bayers:
         position = (
-                (F2W[filt][0] - datadomain[0])
+                (f2w[filt][0] - datadomain[0])
                 / (datadomain[1] - datadomain[0])
         )
         if filt.endswith("G"):
@@ -222,19 +229,27 @@ def make_pplot_annotation(data: pd.DataFrame,
     if 'SOL' in line.keys():
         annotation += f'sol {line["SOL"]}, '
     if 'SEQ_ID' in line.keys():
-        annotation += f'zcam{line["SEQ_ID"][4:]}, '
+        annotation += line["SEQ_ID"]
+    # PCAM only
+    if 'SEQ_VER' in line.keys():
+        annotation += f"seq_ver {line['SEQ_VER']}"
+    # ZCAM / MCAM
     if 'RSM' in line.keys():
         annotation += f'rsm {line["RSM"]}'
+    # PCAM
+    if 'PMA' in line.keys():
+        annotation += f'pma {line["PMA"]}'
     if obsgeom is not None:
         annotation += f" {obsgeom_string(obsgeom)}"
     return annotation
 
 
-def _plt_bayers(ax, data, i, photometric_scaling, symbol):
+def _plt_bayers(ax, data, i, photometric_scaling, symbol, instrument):
+    f2w = filter_to_wavelength(instrument)
     for bayer in ["L0R", "L0G", "L0B", "R0R", "R0G", "R0B"]:
         try:
             ax.errorbar(
-                FILTER_TO_WAVELENGTH[bayer].values[0],
+                f2w[bayer].values[0],
                 data.iloc[i][bayer] / photometric_scaling,
                 yerr=data.iloc[i][[f"{bayer}_STD"]],
                 fmt=f"{symbol}",
@@ -266,9 +281,10 @@ def _apply_offset(data, available_bands, offset, roi_labels):
 
 
 def _plot_symbols(ax, data, i, ix, markersizes, notna_narrow,
-                  photometric_scaling, roi_labels, symbol):
+                  photometric_scaling, roi_labels, symbol, instrument):
+    f2w = filter_to_wavelength(instrument)
     ax.scatter(
-        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        f2w[notna_narrow].values[0][ix],
         data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
         marker=f"{symbol}",
         color=MERSPECT_COLOR_MAPPINGS[data["COLOR"].values[i]],
@@ -281,9 +297,10 @@ def _plot_symbols(ax, data, i, ix, markersizes, notna_narrow,
     )
 
 
-def _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling):
+def _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling, instrument):
+    f2w = filter_to_wavelength(instrument)
     ax.errorbar(
-        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        f2w[notna_narrow].values[0][ix],
         data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
         yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
         fmt=f"-",
@@ -294,9 +311,10 @@ def _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling):
     )
 
 
-def _plot_errorbars(ax, data, i, ix, notna_narrow, photometric_scaling):
+def _plot_errorbars(ax, data, i, ix, notna_narrow, photometric_scaling, instrument):
+    f2w = filter_to_wavelength(instrument)
     ax.errorbar(
-        FILTER_TO_WAVELENGTH[notna_narrow].values[0][ix],
+        f2w[notna_narrow].values[0][ix],
         data.iloc[i][notna_narrow].iloc[ix] / photometric_scaling,
         yerr=data.iloc[i][[f"{f}_STD" for f in notna_narrow]].iloc[ix],
         fmt=f"",
@@ -324,23 +342,26 @@ def _make_yax_label(instrument, normalize, offset, yax_label):
 
 
 def _plot_roi(ax, data, i, narrow, photometric_scaling, plt_bayer, roi_labels,
-              sym):
+              sym, instrument):
+    f2w = filter_to_wavelength(instrument)
     symbol = next(sym)
     # Plot narrowband filters as connected
     notna_narrow = [f for f in narrow if np.isfinite(data.iloc[i][f])]
     markersizes = [
         8 if len(k) == 3 else 13 for k in notna_narrow
     ]  # plot bayers w/ smaller symbols
-    ix = np.argsort(FILTER_TO_WAVELENGTH[notna_narrow].values[0])
-    _plot_errorbars(ax, data, i, ix, notna_narrow, photometric_scaling)
-    _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling)
+    ix = np.argsort(f2w[notna_narrow].values[0])
+    _plot_errorbars(
+        ax, data, i, ix, notna_narrow, photometric_scaling, instrument
+    )
+    _plot_line(ax, data, i, ix, notna_narrow, photometric_scaling, instrument)
     _plot_symbols(ax, data, i, ix, markersizes, notna_narrow,
-                  photometric_scaling, roi_labels, symbol)
+                  photometric_scaling, roi_labels, symbol, instrument)
     # Plot bayer separately as smaller markers, w/ left eye filled and
     #  right as outlines
     # TODO: add black outlines to the bayer filters
     if plt_bayer is True:
-        _plt_bayers(ax, data, i, photometric_scaling, symbol)
+        _plt_bayers(ax, data, i, photometric_scaling, symbol, instrument)
 
 
 def _make_symgen(sym):
@@ -382,19 +403,25 @@ def _calculate_datarange(available_bands, data, pscale):
     return datarange
 
 
-def _make_narrowband_ticks(available_bands, datadomain, narrow, prx):
+def _make_narrowband_ticks(
+    available_bands, datadomain, narrow, prx, instrument, join_filters_at
+):
+    f2w = filter_to_wavelength(instrument)
     prx.set_xticks(
-        (FILTER_TO_WAVELENGTH[narrow].values[0] - datadomain[0])
+        (f2w[narrow].values[0] - datadomain[0])
         / (datadomain[1] - datadomain[0])
     )
-    if ("L1" in available_bands) and ("R1" in available_bands):
-        L1_R1_label = "L1\nR1"
-    elif "L1" in available_bands:
-        L1_R1_label = "L1"
+    if (
+        join_filters_at[0] in available_bands
+            and join_filters_at[1] in available_bands
+    ):
+        joined_label = "\n".join(join_filters_at)
+    elif join_filters_at[0] in available_bands:
+        joined_label = join_filters_at[0]
     else:
-        L1_R1_label = "R1"
+        joined_label = join_filters_at[1]
     prx.set_xticklabels(
-        [k.replace("L1", L1_R1_label) for k in narrow],
+        [k.replace(join_filters_at[0], joined_label) for k in narrow],
         fontproperties=TICK_FP,
     )
 
@@ -436,7 +463,8 @@ def pretty_plot(
     annotation=None,
     width_sf: "x" = 1,
     height_sf: "y" = 1,
-    instrument = "ZCAM",
+    instrument: str = "ZCAM",
+    join_filters_at: tuple[str, str] = ("L1", "R1"),
     normalize: Optional[Union[str, bool]] = None,
     observation_geometry: ObservationGeometry | None = None
 ):
@@ -448,7 +476,7 @@ def pretty_plot(
     _check_cell_kwargs(instrument, normalize, plot_edges, scale_method,
                        underplot, units)
     try:
-        data = scale_eyes(data, scale_method, instrument)
+        data = scale_eyes(data, scale_method, instrument, join_filters_at)
     except InstrumentIsMonocular:
         pass
     # NOTE: these DataFrame.replace() calls should generally be fine because
@@ -510,16 +538,21 @@ def pretty_plot(
     # Remove spines _not_ listed in `plot_edges`
     despine(prx, edges=list(set(EDGES).difference(set(plot_edges))))
     if plt_bayer:
-        _set_up_bayer_ticks(data, datadomain, prx)
+        _set_up_bayer_ticks(data, datadomain, prx, instrument)
     # Set the major ticks of the top axis with the narrowband filters
-    # only graph L1 from L1/R1, if it's available
-    if "L1" in available_bands:
+    # only graph first join filter, if available
+    joinfilt_1, joinfilt_2 = join_filters_at
+    if joinfilt_1 in available_bands:
         narrow = [
-            k for k in available_bands if ("0" not in k) and ("R1" not in k)
+            k for k in available_bands
+            if ("0" not in k)
+            and (joinfilt_2 not in k)
         ]
     else:
         narrow = [k for k in available_bands if ("0" not in k)]
-    _make_narrowband_ticks(available_bands, datadomain, narrow, prx)
+    _make_narrowband_ticks(
+        available_bands, datadomain, narrow, prx, instrument, join_filters_at
+    )
     if underplot == "filter":
         plot_filter_profiles(ax, datarange)
     elif underplot == "grid":
@@ -537,7 +570,7 @@ def pretty_plot(
     symgen = _make_symgen(symgen)
     for i in range(len(data.index)):
         _plot_roi(ax, data, i, narrow, photometric_scaling, plt_bayer,
-                  roi_labels, symgen)
+                  roi_labels, symgen, instrument)
     ax.set_zorder(1)  # adjust the rendering order of twin axes
     ax.set_frame_on(False)  # make it transparent
 

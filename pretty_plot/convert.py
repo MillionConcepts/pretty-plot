@@ -16,17 +16,26 @@ class InstrumentIsMonocular(TypeError):
     pass
 
 
-def scale_eyes(data, method="scale_to_avg", instrument="ZCAM"):
+def scale_eyes(
+    data,
+    method="scale_to_avg",
+    instrument="ZCAM",
+    scale_to: tuple[str, str] = ("L1", "R1")
+):
     if method is None:
         return data
-    if "L1" not in data.columns or "R1" not in data.columns:
+    assert scale_to[0].startswith("L") and scale_to[1].startswith("R")
+    if not set(scale_to).issubset(set(data.columns)):
         # shared filters don't exist
         return data
     # Accepts a "marslab format" spectra file pandas DataFrame
     # This translation is done _in place_... which is maybe bad...
     #    but will be fine as long as you always restart + rerun
     # TODO: Remove duplicate functionality with marslab.compat.xcam
-    if np.isnan(data["L1"].values).any() or np.isnan(data["R1"].values).any():
+    if (
+        np.isnan(data[scale_to[0]].values).any()
+        or np.isnan(data[scale_to[1]].values).any()
+    ):
         # shared filters don't exist
         return data
     # reduce chance of unwanted casts
@@ -35,23 +44,27 @@ def scale_eyes(data, method="scale_to_avg", instrument="ZCAM"):
     ]
     filterframe = data[fcols]
     if method == "scale_to_left":
-        # scale right to left eye at 800 (ZCAM) or 527 (MCAM) nm
+        # scale right to left eye at specified filter
         for i in range(len(filterframe.index)):
             scale_factor = (
-                filterframe.loc[i, "L1"] / filterframe.loc[i, "R1"]
+                filterframe.loc[i, scale_to[0]]
+                / filterframe.loc[i, scale_to[1]]
             )
             for k in filterframe.keys():
                 if k.startswith('R'):
                     # Scale R to L in place
                     data.loc[i, k] = filterframe.loc[i, k] * scale_factor
     elif method == "scale_to_avg":
-        # scale right and left eyes to average at 800 (ZCAM) or 527 (MCAM) nm
+        # scale right and left eyes to average of specified filters
         for i in range(len(data.index)):
             eye_mean = np.mean(
-                (filterframe.loc[i, "L1"], filterframe.loc[i, "R1"])
+                (
+                    filterframe.loc[i, scale_to[0]],
+                    filterframe.loc[i, scale_to[1]]
+                )
             )
-            left_scale = eye_mean / filterframe.loc[i, "L1"]
-            right_scale = eye_mean / filterframe.loc[i, "R1"]
+            left_scale = eye_mean / filterframe.loc[i, scale_to[0]]
+            right_scale = eye_mean / filterframe.loc[i, scale_to[1]]
             for k in filterframe.keys():
                 if k.startswith("R"):
                     # Scale R to L in place
@@ -70,6 +83,7 @@ def load_spectra(spectra_fn):
     return pd.concat(data, ignore_index=True)
 
 
+# TODO: cruft?
 def convert_to_simple_format(
     spectra_fn,
     instrument="ZCAM",

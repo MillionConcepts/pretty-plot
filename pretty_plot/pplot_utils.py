@@ -1,7 +1,7 @@
 import re
 import textwrap
 from functools import partial
-from itertools import cycle
+from itertools import cycle, chain
 from numbers import Number
 from pathlib import Path
 from typing import Optional, Union, TypedDict
@@ -164,16 +164,22 @@ def _handle_photometric_scaling(normalize, solar_elevation, units):
     return photometric_scaling, yax_label
 
 
-def _check_cell_kwargs(instrument, normalize, plot_edges, scale_method,
-                       underplot, units):
+def _check_call_kwargs(instrument, normalize, plot_edges, scale_method,
+                       underplot, units, average_filter_pairs, join_filters_at):
     try:
         assert (edge in EDGES for edge in plot_edges)
         assert underplot in [None, "filter", "grid"]
         assert scale_method in ["scale_to_left", "scale_to_avg", None]
         assert units in (None, "IOF", "R*")
         assert normalize in (
-                [True, False] + list(DERIVED_CAM_DICT[instrument]["filters"])
+            [True, False] + list(DERIVED_CAM_DICT[instrument]["filters"])
         )
+        all_average_filters = tuple(chain(*average_filter_pairs))
+        assert len(set(all_average_filters)) == len(all_average_filters)
+        assert set(all_average_filters).issubset(
+            DERIVED_CAM_DICT[instrument]["filters"]
+        )
+        assert tuple(join_filters_at) not in average_filter_pairs
     except AssertionError:
         raise TypeError("invalid argument")
 
@@ -404,26 +410,18 @@ def _calculate_datarange(available_bands, data, pscale):
 
 
 def _make_narrowband_ticks(
-    available_bands, datadomain, narrow, prx, instrument, join_filters_at
+    available_bands, datadomain, narrow, prx, instrument, pairs_to_average
 ):
     f2w = filter_to_wavelength(instrument)
     prx.set_xticks(
         (f2w[narrow].values[0] - datadomain[0])
         / (datadomain[1] - datadomain[0])
     )
-    if (
-        join_filters_at[0] in available_bands
-            and join_filters_at[1] in available_bands
-    ):
-        joined_label = "\n".join(join_filters_at)
-    elif join_filters_at[0] in available_bands:
-        joined_label = join_filters_at[0]
-    else:
-        joined_label = join_filters_at[1]
-    prx.set_xticklabels(
-        [k.replace(join_filters_at[0], joined_label) for k in narrow],
-        fontproperties=TICK_FP,
-    )
+    labels = narrow
+    for pair in pairs_to_average:
+        if set(pair).issubset(available_bands):
+            labels = [l.replace(pair[0], "\n".join(pair)) for l in labels]
+    prx.set_xticklabels(labels, fontproperties=TICK_FP)
 
 
 def _set_left_yax_ticks(ax, datarange):
@@ -466,15 +464,17 @@ def pretty_plot(
     instrument: str = "ZCAM",
     join_filters_at: tuple[str, str] = ("L1", "R1"),
     normalize: Optional[Union[str, bool]] = None,
-    observation_geometry: ObservationGeometry | None = None
+    observation_geometry: ObservationGeometry | None = None,
+    average_filter_pairs: list[tuple[str, str]] | None = None
 ):
+    if average_filter_pairs is None:
+        average_filter_pairs = []
     if observation_geometry is not None and solar_elevation is not None:
         check_incidence_validity(observation_geometry, solar_elevation)
     data = data.copy()
     normalize = False if normalize is None else normalize
-    # make sure call kwargs have valid values
-    _check_cell_kwargs(instrument, normalize, plot_edges, scale_method,
-                       underplot, units)
+    _check_call_kwargs(instrument, normalize, plot_edges, scale_method,
+                       underplot, units, average_filter_pairs, join_filters_at)
     try:
         data = scale_eyes(data, scale_method, instrument, join_filters_at)
     except InstrumentIsMonocular:
@@ -518,6 +518,13 @@ def pretty_plot(
         _apply_offset(
             data, available_bands, offset, roi_labels
         )
+    pairs_to_average = average_filter_pairs + [join_filters_at]
+    for pair in pairs_to_average:
+        if set(pair).issubset(available_bands):
+            data[pair[0]] = (data[pair[0]] + data[pair[1]]) / 2
+            data[f"{pair[0]}_STD"] = (
+                 data[f"{pair[0]}_STD"] + data[f"{pair[1]}_STD"]
+             ) / 2
     datarange = _calculate_datarange(available_bands, data, pscale)
     # create the matplotlib figure we will render the plot in
     fig, ax = plt.subplots(
@@ -540,18 +547,12 @@ def pretty_plot(
     if plt_bayer:
         _set_up_bayer_ticks(data, datadomain, prx, instrument)
     # Set the major ticks of the top axis with the narrowband filters
-    # only graph first join filter, if available
-    joinfilt_1, joinfilt_2 = join_filters_at
-    if joinfilt_1 in available_bands:
-        narrow = [
-            k for k in available_bands
-            if ("0" not in k)
-            and (joinfilt_2 not in k)
-        ]
-    else:
-        narrow = [k for k in available_bands if ("0" not in k)]
+    narrow = [k for k in available_bands if "0" not in k]
+    for pair in pairs_to_average:
+        if set(pair).issubset(narrow):
+            narrow.remove(pair[1])
     _make_narrowband_ticks(
-        available_bands, datadomain, narrow, prx, instrument, join_filters_at
+        available_bands, datadomain, narrow, prx, instrument, pairs_to_average
     )
     if underplot == "filter":
         plot_filter_profiles(ax, datarange)

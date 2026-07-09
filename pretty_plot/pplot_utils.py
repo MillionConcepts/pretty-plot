@@ -241,10 +241,12 @@ def make_pplot_annotation(data: pd.DataFrame,
         annotation += f"seq_ver {line['SEQ_VER']}, "
     # ZCAM / MCAM
     if 'RSM' in line.keys():
-        annotation += f'rsm {line["RSM"]}'
+        annotation += f'rsm {line["RSM"]},'
     # PCAM
     if 'PMA' in line.keys():
-        annotation += f'pma {line["PMA"]}'
+        annotation += f'pma {line["PMA"]},'
+    if 'LTST' in line.keys():
+        annotation += f' ltst {line['LTST']}'
     if obsgeom is not None:
         annotation += f" {obsgeom_string(obsgeom)}"
     return annotation

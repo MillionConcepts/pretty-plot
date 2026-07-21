@@ -246,7 +246,7 @@ def make_pplot_annotation(data: pd.DataFrame,
     if 'PMA' in line.keys():
         annotation += f'pma {line["PMA"]},'
     if 'LTST' in line.keys():
-        annotation += f' ltst {line['LTST']}'
+        annotation += f' ltst {line["LTST"]}'
     if obsgeom is not None:
         annotation += f" {obsgeom_string(obsgeom)}"
     return annotation
